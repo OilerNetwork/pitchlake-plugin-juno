@@ -6,7 +6,7 @@ toolchain go1.22.6
 
 require github.com/NethermindEth/juno v0.12.0
 
-replace github.com/NethermindEth/juno => ../juno
+replace github.com/NethermindEth/juno => ../juno-pitchlake
 
 require (
 	github.com/DataDog/zstd v1.5.6-0.20230824185856-869dae002e5e // indirect
