@@ -1,7 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"net"
+	"net/http"
+	"time"
 
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
@@ -20,6 +25,36 @@ var JunoPluginInstance = pitchlakePlugin{
 var _ junoplugin.JunoPlugin = (*pitchlakePlugin)(nil)
 
 func (p *pitchlakePlugin) Init() error {
+
+	l, err := net.Listen("tcp", "50555")
+	if err != nil {
+		return err
+	}
+	log.Printf("listening on ws://%v", l.Addr())
+	ws := NewWebsocket()
+	s := &http.Server{
+		Handler:      ws,
+		ReadTimeout:  time.Second * 10,
+		WriteTimeout: time.Second * 10,
+	}
+	errc := make(chan error, 1)
+	go func() {
+		errc <- s.Serve(l)
+	}()
+
+	// sigs := make(chan os.Signal,2a 1)
+	// signal.Notify(sigs, os.Interrupt)
+	// select {
+	// case err := <-errc:
+	// 	log.Printf("failed to serve: %v", err)
+	// case sig := <-sigs:
+	// 	log.Printf("terminating: %v", sig)
+	// }
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	return s.Shutdown(ctx)
 	fmt.Println("ExamplePlugin initialised")
 	return nil
 }
@@ -37,6 +72,10 @@ func (p pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpda
 			for j := 0; j < len(block.Receipts[i].Events); j++ {
 				if block.Receipts[i].Events[j].From == &p.vaultAddress {
 					//Event is from the contract, perform actions here
+
+					//If the event is a state transition, update locked unlocked balances
+
+					//If the event is deposit/withdraw update lp balance
 				}
 			}
 		}
