@@ -6,6 +6,11 @@ toolchain go1.22.6
 
 require github.com/NethermindEth/juno v0.12.0
 
+require (
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+)
+
 replace github.com/NethermindEth/juno => ../juno-pitchlake
 
 require (
@@ -31,6 +36,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
 	github.com/holiman/uint256 v1.3.0 // indirect
+	github.com/jackc/pgx/v5 v5.6.0
 	github.com/klauspost/compress v1.17.8 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
