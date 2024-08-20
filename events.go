@@ -17,54 +17,76 @@ func onDeposit(address string, amount int64, newBlockNumber int64) error {
 	defer conn.Close(context.Background())
 
 	// Variables to store previous values
-	var prevUnlockedBalance, prevLockedBalance int64
-	var recordExists bool
+	var prevUnlockedBalanceLP, prevLockedBalanceLP int64
+	var prevUnlockedBalanceVault, prevLockedBalanceVault int64
 
-	// Query to select the latest row for the given address
-	querySelect := `
+	// Query to select the latest row for the given address in Liquidity_Providers
+	querySelectLP := `
 		SELECT unlocked_balance, locked_balance
 		FROM public."Liquidity_Providers"
 		WHERE address = $1
 		ORDER BY block_number DESC
 		LIMIT 1;
 	`
-
-	row := conn.QueryRow(context.Background(), querySelect, address)
-	err = row.Scan(&prevUnlockedBalance, &prevLockedBalance)
+	rowLP := conn.QueryRow(context.Background(), querySelectLP, address)
+	err = rowLP.Scan(&prevUnlockedBalanceLP, &prevLockedBalanceLP)
 
 	if err == pgx.ErrNoRows {
-		// Address does not exist, create a new record with initial values
-		prevUnlockedBalance = 0
-		prevLockedBalance = 0
-		recordExists = false
+		// Address does not exist in Liquidity_Providers, create a new record with initial values
+		prevUnlockedBalanceLP = 0
+		prevLockedBalanceLP = 0
+
 	} else if err != nil {
-		return fmt.Errorf("error fetching previous balance: %v", err)
-	} else {
-		recordExists = true
+		return fmt.Errorf("error fetching previous balance LP: %v", err)
+	}
+
+	// Query to select the latest row in Vault
+	querySelectVault := `
+		SELECT unlocked_balance, locked_balance
+		FROM public."Vault"
+		ORDER BY block_number DESC
+		LIMIT 1;
+	`
+	rowVault := conn.QueryRow(context.Background(), querySelectVault)
+	err = rowVault.Scan(&prevUnlockedBalanceVault, &prevLockedBalanceVault)
+
+	if err == pgx.ErrNoRows {
+		// No record exists in Vault, create a new record with initial values
+		prevUnlockedBalanceVault = 0
+		prevLockedBalanceVault = 0
+	} else if err != nil {
+		return fmt.Errorf("error fetching previous balance Vault: %v", err)
 	}
 
 	// Update the unlocked balance with the deposit amount
-	newUnlockedBalance := prevUnlockedBalance + amount
+	newUnlockedBalanceLP := prevUnlockedBalanceLP + amount
+	newUnlockedBalanceVault := prevUnlockedBalanceVault + amount
 
-	// Insert the new balance into the database
-	queryInsert := `
+	// Insert or update Liquidity_Providers
+	queryInsertLP := `
 		INSERT INTO public."Liquidity_Providers" (address, unlocked_balance, locked_balance, block_number)
-		VALUES ($1, $2, $3, $4);
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (address, block_number) 
+		DO UPDATE SET unlocked_balance = EXCLUDED.unlocked_balance, locked_balance = EXCLUDED.locked_balance;
 	`
-	_, err = conn.Exec(context.Background(), queryInsert, address, newUnlockedBalance, prevLockedBalance, newBlockNumber)
+	_, err = conn.Exec(context.Background(), queryInsertLP, address, newUnlockedBalanceLP, prevLockedBalanceLP, newBlockNumber)
 	if err != nil {
-		return fmt.Errorf("error inserting new balance: %v", err)
+		return fmt.Errorf("error inserting or updating balance in Liquidity_Providers: %v", err)
 	}
 
-	if recordExists {
-		fmt.Printf("Deposit recorded for existing record: Address: %s, Amount: %d, New Unlocked Balance: %d, Block Number: %d\n", address, amount, newUnlockedBalance, newBlockNumber)
-	} else {
-		fmt.Printf("Deposit recorded for new record: Address: %s, Amount: %d, New Unlocked Balance: %d, Block Number: %d\n", address, amount, newUnlockedBalance, newBlockNumber)
+	// Insert or update Vault
+	queryInsertVault := `
+		INSERT INTO public."Vault" (block_number, unlocked_balance, locked_balance)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (block_number) 
+		DO UPDATE SET unlocked_balance = EXCLUDED.unlocked_balance, locked_balance = EXCLUDED.locked_balance;
+	`
+	_, err = conn.Exec(context.Background(), queryInsertVault, newBlockNumber, newUnlockedBalanceVault, prevLockedBalanceVault)
+	if err != nil {
+		return fmt.Errorf("error inserting or updating balance in Vault: %v", err)
 	}
-
 	return nil
 }
-
 func onWithdrawal(address string, amount int64, newBlockNumber int64) error {
 	// Connect to the database
 	conn, err := pgx.Connect(context.Background(), os.Getenv("DB_URL"))
@@ -73,34 +95,87 @@ func onWithdrawal(address string, amount int64, newBlockNumber int64) error {
 	}
 	defer conn.Close(context.Background())
 
-	// Query to select the latest row for the given address
-	var prevUnlockedBalance, prevLockedBalance int64
-	querySelect := `
+	// Variables to store previous values
+	var prevUnlockedBalanceLP, prevLockedBalanceLP int64
+	var prevUnlockedBalanceVault, prevLockedBalanceVault, prevBlockVault int64
+
+	// Query to select the latest row for the given address in Liquidity_Providers
+	querySelectLP := `
 		SELECT unlocked_balance, locked_balance
 		FROM public."Liquidity_Providers"
 		WHERE address = $1
 		ORDER BY block_number DESC
 		LIMIT 1;
 	`
-	err = conn.QueryRow(context.Background(), querySelect, address).Scan(&prevUnlockedBalance, &prevLockedBalance)
-	if err != nil && err != pgx.ErrNoRows {
-		return fmt.Errorf("error fetching previous balance: %v", err)
+	rowLP := conn.QueryRow(context.Background(), querySelectLP, address)
+	err = rowLP.Scan(&prevUnlockedBalanceLP, &prevLockedBalanceLP)
+
+	if err == pgx.ErrNoRows {
+		// Address does not exist in Liquidity_Providers, create a new record with initial values
+		prevUnlockedBalanceLP = 0
+		prevLockedBalanceLP = 0
+	} else if err != nil {
+		return fmt.Errorf("error fetching previous balance LP: %v", err)
+	}
+	// Query to select the latest row in Vault
+	querySelectVault := `
+		SELECT unlocked_balance, locked_balance, block_number
+		FROM public."Vault"
+		ORDER BY block_number DESC
+		LIMIT 1;
+	`
+	rowVault := conn.QueryRow(context.Background(), querySelectVault)
+	err = rowVault.Scan(&prevUnlockedBalanceVault, &prevLockedBalanceVault, &prevBlockVault)
+
+	if err == pgx.ErrNoRows {
+		// No record exists in Vault, create a new record with initial values
+		prevUnlockedBalanceVault = 0
+		prevLockedBalanceVault = 0
+	} else if err != nil {
+		return fmt.Errorf("error fetching previous balance Vault: %v", err)
 	}
 
 	// Update the unlocked balance with the withdrawal amount
-	newUnlockedBalance := prevUnlockedBalance - amount
+	newUnlockedBalanceLP := prevUnlockedBalanceLP - amount
+	newUnlockedBalanceVault := prevUnlockedBalanceVault - amount
 
-	// Insert the new balance into the database
-	queryInsert := `
+	// Insert or update Liquidity_Providers
+	queryInsertLP := `
 		INSERT INTO public."Liquidity_Providers" (address, unlocked_balance, locked_balance, block_number)
-		VALUES ($1, $2, $3, $4);
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (address, block_number) 
+		DO UPDATE SET unlocked_balance = EXCLUDED.unlocked_balance, locked_balance = EXCLUDED.locked_balance;
 	`
-	_, err = conn.Exec(context.Background(), queryInsert, address, newUnlockedBalance, prevLockedBalance, newBlockNumber)
+	_, err = conn.Exec(context.Background(), queryInsertLP, address, newUnlockedBalanceLP, prevLockedBalanceLP, newBlockNumber)
 	if err != nil {
-		return fmt.Errorf("error inserting new balance: %v", err)
+		return fmt.Errorf("error inserting or updating balance in Liquidity_Providers: %v", err)
 	}
 
-	fmt.Printf("Withdrawal recorded: Address: %s, Amount: %d, New Unlocked Balance: %d, Block Number: %d\n", address, amount, newUnlockedBalance, newBlockNumber)
+	// Insert or update Vault
+	queryInsertVault := `
+		INSERT INTO public."Vault" (block_number, unlocked_balance, locked_balance)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (block_number) 
+		DO UPDATE SET unlocked_balance = EXCLUDED.unlocked_balance, locked_balance = EXCLUDED.locked_balance;
+	`
+	if newBlockNumber == prevBlockVault {
+		// Update the existing row in Vault if the block number is the same
+		queryUpdateVault := `
+			UPDATE public."Vault"
+			SET unlocked_balance = $1, locked_balance = $2
+			WHERE block_number = $3;
+		`
+		_, err = conn.Exec(context.Background(), queryUpdateVault, newUnlockedBalanceVault, prevLockedBalanceVault, newBlockNumber)
+		if err != nil {
+			return fmt.Errorf("error updating balance in Vault: %v", err)
+		}
+	} else {
+		_, err = conn.Exec(context.Background(), queryInsertVault, newBlockNumber, newUnlockedBalanceVault, prevLockedBalanceVault)
+		if err != nil {
+			return fmt.Errorf("error inserting new balance in Vault: %v", err)
+		}
+	}
+
 	return nil
 }
 
