@@ -37,6 +37,15 @@ func Init(dsn string) (*DB, error) {
 	return &DB{conn: conn}, nil
 }
 
+func (db *DB) Close() error {
+	//Close the DB connection
+	sqlDB, err := db.conn.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
 // CreateVault creates a new Vault record in the database
 func (db *DB) CreateVault(vault *models.Vault) error {
 	if err := db.conn.Create(vault).Error; err != nil {

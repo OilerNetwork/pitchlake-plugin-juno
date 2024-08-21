@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"junoplugin/adaptors"
 	"junoplugin/db"
 	"log"
 
@@ -21,6 +22,7 @@ type pitchlakePlugin struct {
 	prevState    int64
 	db           *db.DB
 	log          *log.Logger
+	adaptors     *adaptors.PostgresAdapter
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -44,6 +46,7 @@ func (p *pitchlakePlugin) Init() error {
 
 func (p *pitchlakePlugin) Shutdown() error {
 	p.log.Println("Calling Shutdown() in plugin")
+	p.db.Close()
 	return nil
 }
 
