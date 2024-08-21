@@ -1,16 +1,13 @@
-package myplugin
+package main
 
 import (
-	"context"
 	"fmt"
 	"junoplugin/db"
 	"log"
-	"os"
 
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
 	junoplugin "github.com/NethermindEth/juno/plugin"
-	"github.com/jackc/pgx/v5"
 )
 
 // Todo: push this stuff to a config file / cmd line
@@ -72,14 +69,14 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 }
 
 func onDeposit([]any) error {
+	//get previous value
 
-	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
-	}
-	defer conn.Close(context.Background())
+	//insert new value
 
+	var query = `INSERT INTO public."Liquidity_Providers"(
+	address, unlocked_balance, locked_balance, block_number)
+	VALUES (?, ?, ?, ?);`
+	fmt.Println(query)
 	return nil
 }
 

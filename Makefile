@@ -1,2 +1,2 @@
 build:
-	go build -buildmode=plugin -o myplugin.so myplugin.go
+	go build -buildmode=plugin -o myplugin.so plugin/myplugin.go
