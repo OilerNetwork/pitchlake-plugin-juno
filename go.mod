@@ -4,7 +4,10 @@ go 1.22.2
 
 toolchain go1.22.6
 
-require github.com/NethermindEth/juno v0.12.0
+require (
+	github.com/NethermindEth/juno v0.12.0
+	github.com/lib/pq v1.10.9
+)
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
