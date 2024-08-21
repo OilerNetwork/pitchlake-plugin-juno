@@ -6,7 +6,7 @@ import (
 
 type Vault struct {
 	gorm.Model          // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
-	BlockNumber     int `gorm:"column:block_number;not null"`
+	BlockNumber     int `gorm:"column:block_number;not null;primaryKey"`
 	UnlockedBalance int `gorm:"column:unlocked_balance;not null"`
 	LockedBalance   int `gorm:"column:locked_balance;not null"`
 }
@@ -22,9 +22,10 @@ type LiquidityProvider struct {
 type OptionBuyer struct {
 	gorm.Model        // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
 	Address    string `gorm:"column:address;not null"`
-	Bids       string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
-	RoundID    int    `gorm:"column:round_id;not null"`
-	OptionsWon int    `gorm:"column:options_won;not null"`
+	//Maybe this is not required and can be directly fetched as a view/index on the bids table
+	//Bids       string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
+	RoundID    int `gorm:"column:round_id;not null"`
+	OptionsWon int `gorm:"column:options_won;not null"`
 }
 
 type OptionRound struct {
@@ -54,8 +55,18 @@ type VaultState struct {
 	Address             string `gorm:"column:address;not null"`
 }
 
+type LiquidityProviderState struct {
+	gorm.Model          // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	Address         int `gorm:"column:address;not null;primaryKey"`
+	UnlockedBalance int `gorm:"column:unlocked_balance;not null"`
+	LockedBalance   int `gorm:"column:locked_balance;not null"`
+	StashedBalance  int `gorm:"column:stashed_balance;"`
+	QueuedBalance   int `gorm:"column:queued_balance;"`
+}
+
 type Bid struct {
 	gorm.Model        // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	Address    string `gorm:"column:address;not null"`
 	RoundID    int    `gorm:"column:round_id;not null"`
 	BidID      string `gorm:"column:bid_id;not null;unique"`
 	Amount     int    `gorm:"column:amount;not null"`

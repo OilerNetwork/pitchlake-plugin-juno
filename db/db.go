@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"junoplugin/models"
 	"log"
 
@@ -91,6 +92,30 @@ func (db *DB) UpdateLiquidityProvider(lp *models.LiquidityProvider) error {
 	if err := db.conn.Save(lp).Error; err != nil {
 		return err
 	}
+	return nil
+}
+
+func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState) error {
+	// Attempt to update the record based on the composite key (address and block_number)
+	if err := db.conn.Model(&models.LiquidityProvider{}).
+		Where("address = ?", lp.Address).
+		Updates(map[string]interface{}{
+			"unlocked_balance": lp.UnlockedBalance,
+			"locked_balance":   lp.LockedBalance,
+		}).Error; err != nil {
+
+		// Handle the case where the record was not found
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Record not found, so create a new one
+			if createErr := db.conn.Create(lp).Error; createErr != nil {
+				return createErr // Handle any errors during the creation process
+			}
+		} else {
+			// Handle other errors (e.g., connection failure)
+			return err
+		}
+	}
+
 	return nil
 }
 
