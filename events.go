@@ -179,6 +179,11 @@ func onWithdrawal(address string, amount int64, newBlockNumber int64) error {
 	return nil
 }
 
+func onDeployTransaction() error {
+
+	return nil
+}
+
 func onWithdrawalQueued() error {
 	return nil
 }
