@@ -60,6 +60,5 @@ require (
 	golang.org/x/text v0.17.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	nhooyr.io/websocket v1.8.17
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
