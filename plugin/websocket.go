@@ -1,4 +1,4 @@
-package main
+package myplugin
 
 import (
 	"context"
