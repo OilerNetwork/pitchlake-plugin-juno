@@ -14,7 +14,7 @@ import (
 )
 
 // Todo: push this stuff to a config file / cmd line
-var PostgresConnString = "INSERT_DETAILS_HERE"
+var dsn = "INSERT_DETAILS_HERE"
 var vaultAddress = new(felt.Felt).SetUint64(1)
 var previousState = int64(1)
 
@@ -22,7 +22,7 @@ var previousState = int64(1)
 type pitchlakePlugin struct {
 	vaultAddress *felt.Felt
 	prevState    int64
-	db           *db.PostgresDB
+	db           *db.DB
 	log          *log.Logger
 }
 
@@ -33,12 +33,12 @@ var JunoPluginInstance = pitchlakePlugin{}
 var _ junoplugin.JunoPlugin = (*pitchlakePlugin)(nil)
 
 func (p *pitchlakePlugin) Init() error {
-	postgresDB, err := db.NewPostgresDB(PostgresConnString)
+	db, err := db.Init(dsn)
 	if err != nil {
-		log.Fatalf("Failed to connect to Postgres: %v", err)
+		log.Fatalf("Failed to initialise db: %v", err)
 		return err
 	}
-	p.db = postgresDB
+	p.db = db
 	p.prevState = previousState
 	p.vaultAddress = vaultAddress
 	p.log = log.Default()
@@ -47,11 +47,6 @@ func (p *pitchlakePlugin) Init() error {
 
 func (p *pitchlakePlugin) Shutdown() error {
 	p.log.Println("Calling Shutdown() in plugin")
-	err := p.db.Close()
-	if err != nil {
-		p.log.Fatalf("Failed to close connection to Postgres: %v", err)
-		return err
-	}
 	return nil
 }
 

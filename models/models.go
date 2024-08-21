@@ -1,59 +1,63 @@
 package models
 
-// Vault represents the vault table
+import (
+	"gorm.io/gorm"
+)
+
 type Vault struct {
-	BlockNumber     int `db:"block_number"`
-	UnlockedBalance int `db:"unlocked_balance"`
-	LockedBalance   int `db:"locked_balance"`
+	gorm.Model          // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	BlockNumber     int `gorm:"column:block_number;not null"`
+	UnlockedBalance int `gorm:"column:unlocked_balance;not null"`
+	LockedBalance   int `gorm:"column:locked_balance;not null"`
 }
 
-// LiquidityProvider represents the liquidity_providers table
 type LiquidityProvider struct {
-	Address         int `db:"address"`
-	UnlockedBalance int `db:"unlocked_balance"`
-	LockedBalance   int `db:"locked_balance"`
-	BlockNumber     int `db:"block_number"`
+	gorm.Model          // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	Address         int `gorm:"column:address;not null"`
+	UnlockedBalance int `gorm:"column:unlocked_balance;not null"`
+	LockedBalance   int `gorm:"column:locked_balance;not null"`
+	BlockNumber     int `gorm:"column:block_number;not null"`
 }
 
-// OptionBuyer represents the option_buyers table
 type OptionBuyer struct {
-	Address    string `db:"address"`
-	Bids       []int  `db:"bids"` // Assuming bids are stored as integer array
-	RoundID    int    `db:"round_id"`
-	OptionsWon int    `db:"options_won"`
+	gorm.Model        // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	Address    string `gorm:"column:address;not null"`
+	Bids       string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
+	RoundID    int    `gorm:"column:round_id;not null"`
+	OptionsWon int    `gorm:"column:options_won;not null"`
 }
 
-// OptionRound represents the option_rounds table
 type OptionRound struct {
-	Address           string `db:"address"`
-	RoundID           int    `db:"round_id"`
-	Bids              []int  `db:"bids"` // Assuming bids are stored as integer array
-	StartingBlock     int    `db:"starting_block"`
-	EndingBlock       int    `db:"ending_block"`
-	SettlementDate    int    `db:"settlement_date"`
-	StartingLiquidity int    `db:"starting_liquidity"`
-	AvailableOptions  int    `db:"available_options"`
-	SettlementPrice   int    `db:"settlement_price"`
-	StrikePrice       int    `db:"strike_price"`
-	SoldOptions       int    `db:"sold_options"`
-	ClearingPrice     int    `db:"clearing_price"`
-	State             string `db:"state"`
-	Premiums          int    `db:"premiums"`
+	gorm.Model               // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	Address           string `gorm:"column:address;not null"`
+	RoundID           int    `gorm:"column:round_id;not null"`
+	Bids              string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
+	StartingBlock     int    `gorm:"column:starting_block;not null"`
+	EndingBlock       int    `gorm:"column:ending_block;not null"`
+	SettlementDate    int    `gorm:"column:settlement_date;not null"`
+	StartingLiquidity int    `gorm:"column:starting_liquidity;not null"`
+	AvailableOptions  int    `gorm:"column:available_options;not null"`
+	SettlementPrice   int    `gorm:"column:settlement_price;not null"`
+	StrikePrice       int    `gorm:"column:strike_price;not null"`
+	SoldOptions       int    `gorm:"column:sold_options;not null"`
+	ClearingPrice     int    `gorm:"column:clearing_price;not null"`
+	State             string `gorm:"column:state;not null"`
+	Premiums          int    `gorm:"column:premiums;not null"`
 }
 
-// VaultState represents the vault_state table
 type VaultState struct {
-	CurrentRound        int    `db:"current_round"`
-	CurrentRoundAddress string `db:"current_round_address"`
-	UnlockedBalance     int    `db:"unlocked_balance"`
-	LockedBalance       int    `db:"locked_balance"`
-	Address             string `db:"address"`
+	gorm.Model                 // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	CurrentRound        int    `gorm:"column:current_round;not null"`
+	CurrentRoundAddress string `gorm:"column:current_round_address;not null"`
+	UnlockedBalance     int    `gorm:"column:unlocked_balance;not null"`
+	LockedBalance       int    `gorm:"column:locked_balance;not null"`
+	Address             string `gorm:"column:address;not null"`
 }
 
-// Bid represents the bids table
 type Bid struct {
-	RoundID int    `db:"round_id"`
-	BidID   string `db:"bid_id"`
-	Amount  int    `db:"amount"`
-	Price   int    `db:"price"`
+	gorm.Model        // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	RoundID    int    `gorm:"column:round_id;not null"`
+	BidID      string `gorm:"column:bid_id;not null;unique"`
+	Amount     int    `gorm:"column:amount;not null"`
+	Price      int    `gorm:"column:price;not null"`
 }
