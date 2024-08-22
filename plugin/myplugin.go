@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"junoplugin/adaptors"
 	"junoplugin/db"
+	"junoplugin/events"
 	"log"
 
 	"github.com/NethermindEth/juno/core"
@@ -18,11 +19,12 @@ var previousState = int64(1)
 
 //go:generate go build -buildmode=plugin -o ../../build/plugin.so ./example.go
 type pitchlakePlugin struct {
-	vaultAddress *felt.Felt
-	prevState    int64
-	db           *db.DB
-	log          *log.Logger
-	adaptors     *adaptors.PostgresAdapter
+	vaultAddress   *felt.Felt
+	roundAddresses []*felt.Felt
+	prevState      int64
+	db             *db.DB
+	log            *log.Logger
+	adaptors       *adaptors.PostgresAdapter
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -55,11 +57,53 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 	for _, receipt := range block.Receipts {
 		for _, event := range receipt.Events {
 			if event.From.Equal(p.vaultAddress) {
+				eventName, err := events.DecodeEventName(event.Keys[0].String())
+				if err != nil {
+					log.Fatalf("Failed to decode event: %v", err)
+					return err
+				}
+				switch eventName {
+				case "Deposit":
+					break
+				case "Withdraw":
+					break
+
+				}
 				//Event is from the contract, perform actions here
 
 				//If the event is a state transition, update locked unlocked balances
 
 				//If the event is deposit/withdraw update lp balance
+			} else {
+				for _, address := range p.roundAddresses {
+					if event.From.Equal(p.vaultAddress) {
+						eventName, err := events.DecodeEventName(event.Keys[0].String())
+						if err != nil {
+							log.Fatalf("Failed to decode event: %v", err)
+							return err
+						}
+						if event.From.Equal(address) {
+							switch eventName {
+							case "AuctionStarted":
+								break
+							case "AuctionEnded":
+								break
+							case "OptionRoundSettled":
+								break
+							case "BidAccepted":
+								break
+							case "BidUpdated":
+								break
+							case "OptionsMinted":
+								break
+							case "UnusedBidsRefunded":
+								break
+							case "OptionsExercised":
+								break
+							}
+						}
+					}
+				}
 			}
 		}
 	}

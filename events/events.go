@@ -5,8 +5,41 @@ import (
 	"fmt"
 	"os"
 
+	"encoding/hex"
+
+	"golang.org/x/crypto/sha3"
+
 	"github.com/jackc/pgx/v5"
 )
+
+// Known event names in your contract
+var eventNames = []string{
+	"AuctionStarted",
+	"AuctionEnded",
+	"OptionRoundSettled",
+	"BidAccepted",
+	"BidUpdated",
+	"OptionsMinted",
+	"UnusedBidsRefunded",
+	"OptionsExercised",
+}
+
+// keccak256 function to hash the event name
+func keccak256(input string) string {
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write([]byte(input))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// DecodeEventName decodes the event name from the keys of a StarkNet event
+func DecodeEventName(eventKey string) (string, error) {
+	for _, name := range eventNames {
+		if keccak256(name) == eventKey {
+			return name, nil
+		}
+	}
+	return "", fmt.Errorf("event name not found for key: %s", eventKey)
+}
 
 func onDeposit(address string, amount int64, newBlockNumber int64) error {
 	// Connect to the database
