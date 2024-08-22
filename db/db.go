@@ -71,6 +71,14 @@ func (db *DB) UpdateVault(vault *models.Vault) error {
 	return nil
 }
 
+// UpdateVaultState updates the existing VaultState record
+func (db *DB) UpdateVaultState(vault *models.VaultState) error {
+	if err := db.conn.Save(vault).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 // DeleteVault deletes a Vault record by its ID
 func (db *DB) DeleteVault(id uint) error {
 	if err := db.conn.Delete(&models.Vault{}, id).Error; err != nil {

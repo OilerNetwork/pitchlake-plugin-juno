@@ -13,7 +13,14 @@ import (
 )
 
 // Known event names in your contract
-var eventNames = []string{
+var vaultEventNames = []string{
+	"Deposit",
+	"Withdrawal",
+	"WithdrawalQueued",
+	"QueuedLiquidityCollected",
+	"OptionRoundDeployed",
+}
+var roundEventNames = []string{
 	"AuctionStarted",
 	"AuctionEnded",
 	"OptionRoundSettled",
@@ -32,8 +39,8 @@ func keccak256(input string) string {
 }
 
 // DecodeEventName decodes the event name from the keys of a StarkNet event
-func DecodeEventName(eventKey string) (string, error) {
-	for _, name := range eventNames {
+func DecodeEventNameRound(eventKey string) (string, error) {
+	for _, name := range roundEventNames {
 		if keccak256(name) == eventKey {
 			return name, nil
 		}
@@ -41,6 +48,14 @@ func DecodeEventName(eventKey string) (string, error) {
 	return "", fmt.Errorf("event name not found for key: %s", eventKey)
 }
 
+func DecodeEventNameVault(eventKey string) (string, error) {
+	for _, name := range vaultEventNames {
+		if keccak256(name) == eventKey {
+			return name, nil
+		}
+	}
+	return "", fmt.Errorf("event name not found for key: %s", eventKey)
+}
 func onDeposit(address string, amount int64, newBlockNumber int64) error {
 	// Connect to the database
 	conn, err := pgx.Connect(context.Background(), os.Getenv("DB_URL"))

@@ -56,12 +56,12 @@ type VaultState struct {
 }
 
 type LiquidityProviderState struct {
-	gorm.Model          // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
-	Address         int `gorm:"column:address;not null;primaryKey"`
-	UnlockedBalance int `gorm:"column:unlocked_balance;not null"`
-	LockedBalance   int `gorm:"column:locked_balance;not null"`
-	StashedBalance  int `gorm:"column:stashed_balance;"`
-	QueuedBalance   int `gorm:"column:queued_balance;"`
+	gorm.Model             // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	Address         string `gorm:"column:address;not null;primaryKey"`
+	UnlockedBalance int    `gorm:"column:unlocked_balance;not null"`
+	LockedBalance   int    `gorm:"column:locked_balance;not null"`
+	StashedBalance  int    `gorm:"column:stashed_balance;"`
+	QueuedBalance   int    `gorm:"column:queued_balance;"`
 }
 
 type Bid struct {

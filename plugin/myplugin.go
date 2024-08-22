@@ -5,6 +5,7 @@ import (
 	"junoplugin/adaptors"
 	"junoplugin/db"
 	"junoplugin/events"
+	"junoplugin/models"
 	"log"
 
 	"github.com/NethermindEth/juno/core"
@@ -57,17 +58,23 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 	for _, receipt := range block.Receipts {
 		for _, event := range receipt.Events {
 			if event.From.Equal(p.vaultAddress) {
-				eventName, err := events.DecodeEventName(event.Keys[0].String())
+				eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
 				if err != nil {
 					log.Fatalf("Failed to decode event: %v", err)
 					return err
 				}
 				switch eventName {
-				case "Deposit":
-					break
-				case "Withdraw":
-					break
+				case "Deposit", "Withdraw", "WithdrawalQueued",
+					"QueuedLiquidityCollected":
 
+					//Map the other parameters as well
+					var newLPState = &(models.LiquidityProviderState{Address: event.Keys[1].String()})
+					var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
+					p.db.UpsertLiquidityProviderState(newLPState)
+					p.db.UpdateVaultState(newVaultState)
+					break
+				case "OptionRoundDeployed":
+					break
 				}
 				//Event is from the contract, perform actions here
 
@@ -77,7 +84,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 			} else {
 				for _, address := range p.roundAddresses {
 					if event.From.Equal(p.vaultAddress) {
-						eventName, err := events.DecodeEventName(event.Keys[0].String())
+						eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
 						if err != nil {
 							log.Fatalf("Failed to decode event: %v", err)
 							return err

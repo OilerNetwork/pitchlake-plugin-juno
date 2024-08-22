@@ -7,7 +7,7 @@ import (
 type PostgresAdapter struct {
 }
 
-func (p *PostgresAdapter) onDeposit(event core.Event) error {
+func (p *PostgresAdapter) depositEvent(event core.Event) error {
 
 	return nil
 }
