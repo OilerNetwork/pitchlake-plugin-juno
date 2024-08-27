@@ -46,6 +46,36 @@ func (db *DB) Close() error {
 	return sqlDB.Close()
 }
 
+func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
+	return db.conn.Model(models.OptionRound{}).Where("Address = ?", address).Updates(updates).Error
+}
+
+func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart() error {
+	return db.conn.Model(models.LiquidityProvider{}).Updates(map[string]interface{}{
+		"locked_balance":   gorm.Expr("unlocked_balance"),
+		"unlocked_balance": 0,
+	}).Error
+}
+
+func (db *DB) UpdateVaultBalancesAuctionStart() error {
+	return db.conn.Model(models.VaultState{}).Updates(map[string]interface{}{"unlocked_balance": 0, "locked_balance": gorm.Expr("unlocked_balance")}).Error
+}
+
+func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(startingLiquidity uint64, unsoldLiquidity uint64, premiums uint64) error {
+
+	return db.conn.Model(models.LiquidityProvider{}).Updates(map[string]interface{}{
+		"locked_balance":   gorm.Expr("locked_balance-(locked_balance*?)/?", unsoldLiquidity, startingLiquidity),
+		"unlocked_balance": gorm.Expr("unlocked_balance-(locked_balance*?)/?+(?*locked_balance)/?", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
+	}).Error
+}
+
+func (db *DB) UpdateVaultBalancesAuctionEnd(unsoldLiquidity uint64, premiums uint64) error {
+
+	return db.conn.Model(models.VaultState{}).Updates(map[string]interface{}{
+		"unlocked_balance": gorm.Expr("unlocked_balance+?+?", unsoldLiquidity, premiums),
+		"locked_balance":   gorm.Expr("locked_balance-?", unsoldLiquidity)}).Error
+}
+
 // CreateVault creates a new Vault record in the database
 func (db *DB) CreateVault(vault *models.Vault) error {
 	if err := db.conn.Create(vault).Error; err != nil {

@@ -68,7 +68,10 @@ type Bid struct {
 	gorm.Model        // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
 	Address    string `gorm:"column:address;not null"`
 	RoundID    int    `gorm:"column:round_id;not null"`
-	BidID      string `gorm:"column:bid_id;not null;unique"`
+	BidID      string `gorm:"column:bid_id;not null"`
 	Amount     int    `gorm:"column:amount;not null"`
 	Price      int    `gorm:"column:price;not null"`
+}
+
+type Position struct {
 }

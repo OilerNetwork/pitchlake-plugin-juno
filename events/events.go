@@ -2,14 +2,12 @@ package events
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
 	"os"
 
-	"encoding/hex"
-
-	"golang.org/x/crypto/sha3"
-
 	"github.com/jackc/pgx/v5"
+	"golang.org/x/crypto/sha3"
 )
 
 // Known event names in your contract

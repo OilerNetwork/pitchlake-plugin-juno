@@ -54,6 +54,7 @@ func (p *pitchlakePlugin) Shutdown() error {
 }
 
 func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpdate, newClasses map[felt.Felt]core.Class) error {
+
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {
 		for _, event := range receipt.Events {
@@ -68,7 +69,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 					"QueuedLiquidityCollected":
 
 					//Map the other parameters as well
-					var newLPState = &(models.LiquidityProviderState{Address: event.Keys[1].String()})
+					var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
 					var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
 					p.db.UpsertLiquidityProviderState(newLPState)
 					p.db.UpdateVaultState(newVaultState)
@@ -82,8 +83,9 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 
 				//If the event is deposit/withdraw update lp balance
 			} else {
+
 				for _, address := range p.roundAddresses {
-					if event.From.Equal(p.vaultAddress) {
+					if event.From.Equal(address) {
 						eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
 						if err != nil {
 							log.Fatalf("Failed to decode event: %v", err)
@@ -92,8 +94,16 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 						if event.From.Equal(address) {
 							switch eventName {
 							case "AuctionStarted":
+								p.db.UpdateOptionRoundFields(address.String(), map[string]interface{}{
+									"AvailableOptions":  event.Data[0],
+									"StartingLiquidity": event.Data[1],
+								})
+								p.db.UpdateAllLiquidityProvidersBalancesAuctionStart()
+								p.db.UpdateVaultBalancesAuctionStart()
 								break
 							case "AuctionEnded":
+								p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd()
+								p.db.UpdateVaultBalancesAuctionEnd()
 								break
 							case "OptionRoundSettled":
 								break
