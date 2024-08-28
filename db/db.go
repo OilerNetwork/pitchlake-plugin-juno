@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"junoplugin/models"
 	"log"
 
@@ -36,6 +37,15 @@ func Init(dsn string) (*DB, error) {
 	return &DB{conn: conn}, nil
 }
 
+func (db *DB) Close() error {
+	//Close the DB connection
+	sqlDB, err := db.conn.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
 // CreateVault creates a new Vault record in the database
 func (db *DB) CreateVault(vault *models.Vault) error {
 	if err := db.conn.Create(vault).Error; err != nil {
@@ -55,6 +65,14 @@ func (db *DB) GetVault(id uint) (*models.Vault, error) {
 
 // UpdateVault updates an existing Vault record
 func (db *DB) UpdateVault(vault *models.Vault) error {
+	if err := db.conn.Save(vault).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// UpdateVaultState updates the existing VaultState record
+func (db *DB) UpdateVaultState(vault *models.VaultState) error {
 	if err := db.conn.Save(vault).Error; err != nil {
 		return err
 	}
@@ -91,6 +109,30 @@ func (db *DB) UpdateLiquidityProvider(lp *models.LiquidityProvider) error {
 	if err := db.conn.Save(lp).Error; err != nil {
 		return err
 	}
+	return nil
+}
+
+func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState) error {
+	// Attempt to update the record based on the composite key (address and block_number)
+	if err := db.conn.Model(&models.LiquidityProvider{}).
+		Where("address = ?", lp.Address).
+		Updates(map[string]interface{}{
+			"unlocked_balance": lp.UnlockedBalance,
+			"locked_balance":   lp.LockedBalance,
+		}).Error; err != nil {
+
+		// Handle the case where the record was not found
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// Record not found, so create a new one
+			if createErr := db.conn.Create(lp).Error; createErr != nil {
+				return createErr // Handle any errors during the creation process
+			}
+		} else {
+			// Handle other errors (e.g., connection failure)
+			return err
+		}
+	}
+
 	return nil
 }
 

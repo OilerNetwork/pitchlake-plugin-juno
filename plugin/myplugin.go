@@ -1,16 +1,16 @@
-package myplugin
+package main
 
 import (
-	"context"
 	"fmt"
+	"junoplugin/adaptors"
 	"junoplugin/db"
+	"junoplugin/events"
+	"junoplugin/models"
 	"log"
-	"os"
 
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
 	junoplugin "github.com/NethermindEth/juno/plugin"
-	"github.com/jackc/pgx/v5"
 )
 
 // Todo: push this stuff to a config file / cmd line
@@ -20,10 +20,12 @@ var previousState = int64(1)
 
 //go:generate go build -buildmode=plugin -o ../../build/plugin.so ./example.go
 type pitchlakePlugin struct {
-	vaultAddress *felt.Felt
-	prevState    int64
-	db           *db.DB
-	log          *log.Logger
+	vaultAddress   *felt.Felt
+	roundAddresses []*felt.Felt
+	prevState      int64
+	db             *db.DB
+	log            *log.Logger
+	adaptors       *adaptors.PostgresAdapter
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -47,6 +49,7 @@ func (p *pitchlakePlugin) Init() error {
 
 func (p *pitchlakePlugin) Shutdown() error {
 	p.log.Println("Calling Shutdown() in plugin")
+	p.db.Close()
 	return nil
 }
 
@@ -55,11 +58,59 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 	for _, receipt := range block.Receipts {
 		for _, event := range receipt.Events {
 			if event.From.Equal(p.vaultAddress) {
+				eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
+				if err != nil {
+					log.Fatalf("Failed to decode event: %v", err)
+					return err
+				}
+				switch eventName {
+				case "Deposit", "Withdraw", "WithdrawalQueued",
+					"QueuedLiquidityCollected":
+
+					//Map the other parameters as well
+					var newLPState = &(models.LiquidityProviderState{Address: event.Keys[1].String()})
+					var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
+					p.db.UpsertLiquidityProviderState(newLPState)
+					p.db.UpdateVaultState(newVaultState)
+					break
+				case "OptionRoundDeployed":
+					break
+				}
 				//Event is from the contract, perform actions here
 
 				//If the event is a state transition, update locked unlocked balances
 
 				//If the event is deposit/withdraw update lp balance
+			} else {
+				for _, address := range p.roundAddresses {
+					if event.From.Equal(p.vaultAddress) {
+						eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
+						if err != nil {
+							log.Fatalf("Failed to decode event: %v", err)
+							return err
+						}
+						if event.From.Equal(address) {
+							switch eventName {
+							case "AuctionStarted":
+								break
+							case "AuctionEnded":
+								break
+							case "OptionRoundSettled":
+								break
+							case "BidAccepted":
+								break
+							case "BidUpdated":
+								break
+							case "OptionsMinted":
+								break
+							case "UnusedBidsRefunded":
+								break
+							case "OptionsExercised":
+								break
+							}
+						}
+					}
+				}
 			}
 		}
 	}
@@ -72,14 +123,14 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 }
 
 func onDeposit([]any) error {
+	//get previous value
 
-	conn, err := pgx.Connect(context.Background(), os.Getenv("DATABASE_URL"))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
-	}
-	defer conn.Close(context.Background())
+	//insert new value
 
+	var query = `INSERT INTO public."Liquidity_Providers"(
+	address, unlocked_balance, locked_balance, block_number)
+	VALUES (?, ?, ?, ?);`
+	fmt.Println(query)
 	return nil
 }
 
