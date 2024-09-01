@@ -46,12 +46,8 @@ func (db *DB) Close() error {
 	return sqlDB.Close()
 }
 
-func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
-	return db.conn.Model(models.OptionRound{}).Where("Address = ?", address).Updates(updates).Error
-}
-
 func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart() error {
-	return db.conn.Model(models.LiquidityProvider{}).Updates(map[string]interface{}{
+	return db.conn.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
 		"locked_balance":   gorm.Expr("unlocked_balance"),
 		"unlocked_balance": 0,
 	}).Error
@@ -63,7 +59,7 @@ func (db *DB) UpdateVaultBalancesAuctionStart() error {
 
 func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(startingLiquidity uint64, unsoldLiquidity uint64, premiums uint64) error {
 
-	return db.conn.Model(models.LiquidityProvider{}).Updates(map[string]interface{}{
+	return db.conn.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
 		"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
 		"unlocked_balance": gorm.Expr("unlocked_balance-FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
 	}).Error
@@ -129,12 +125,50 @@ func (db *DB) UpdateBiddersAuctionEnd(clearingPrice uint64, clearingOptionsSold 
 	return nil
 }
 
-func (db *DB) UpdateVaultBalancesOptionSettle(startingLiquidity uint64, queuedLiquidity uint64) error {
+func (db *DB) UpdateVaultBalancesOptionSettle(remainingLiquidty uint64, remainingLiquidityStashed uint64) error {
 
-	return nil
+	return db.conn.Model(models.VaultState{}).Updates(map[string]interface{}{
+		"stashed_balance":  gorm.Expr("stashed_balance+ ? ", remainingLiquidityStashed),
+		"unlocked_balance": gorm.Expr("unlocked_balance+?", remainingLiquidty-remainingLiquidityStashed),
+		"locked_balance":   0}).Error
 }
-func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(startingLiquidity uint64, queuedLiquidity uint64) error {
+func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundID uint64, startingLiquidity uint64, remainingLiquidty uint64, totalPayout uint64) error {
 
+	db.conn.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
+		"locked_balance":   0,
+		"unlocked_balance": gorm.Expr("unlocked_balance + locked_balance - locked_balance*?/?", totalPayout, startingLiquidity),
+	})
+	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundID)
+	if err != nil {
+		return err
+	}
+	for _, queuedAmount := range queuedAmounts {
+		amountToAdd := remainingLiquidty * queuedAmount.QueuedAmount / startingLiquidity
+		db.conn.Model(models.LiquidityProviderState{}).Where("address = ? AND round_id = ", queuedAmount.Address, roundID).
+			Updates(map[string]interface{}{
+				"stashed_balance":  gorm.Expr("stashed_balance + ?", amountToAdd),
+				"unlocked_balance": gorm.Expr("unlocked_balance - ?", amountToAdd),
+			})
+	}
+
+	/* Use this JOIN query to update this without creating 2 entries on the historic table
+	// Perform the update in a single query using JOINs and subqueries
+	err := db.conn.Exec(`
+		UPDATE liquidity_provider_states lps
+		JOIN (
+			SELECT
+				address,
+				queued_amount,
+				remaining_liquidity * queued_amount / ? AS amount_to_add
+			FROM queued_liquidity
+			WHERE round_id = ?
+		) ql ON lps.address = ql.address AND lps.round_id = ?
+		SET
+			lps.locked_balance = 0,
+			lps.unlocked_balance = lps.unlocked_balance + lps.locked_balance - lps.locked_balance * ? / ? - ql.amount_to_add,
+			lps.stashed_balance = lps.stashed_balance + ql.amount_to_add
+	`, startingLiquidity, roundID, roundID, totalPayout, startingLiquidity).Error
+	*/
 	return nil
 }
 
@@ -296,6 +330,10 @@ func (db *DB) UpdateOptionRound(or *models.OptionRound) error {
 		return err
 	}
 	return nil
+}
+
+func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
+	return db.conn.Model(models.OptionRound{}).Where("address = ?", address).Updates(updates).Error
 }
 
 // DeleteOptionRound deletes an OptionRound record by its ID
