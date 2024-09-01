@@ -20,12 +20,13 @@ var previousState = int64(1)
 
 //go:generate go build -buildmode=plugin -o ../../build/plugin.so ./example.go
 type pitchlakePlugin struct {
-	vaultAddress   *felt.Felt
-	roundAddresses []*felt.Felt
-	prevState      int64
-	db             *db.DB
-	log            *log.Logger
-	adaptors       *adaptors.PostgresAdapter
+	vaultAddress         *felt.Felt
+	roundAddresses       []*felt.Felt
+	prevStateVault       *models.VaultState
+	prevStateOptionRound *models.OptionRound
+	db                   *db.DB
+	log                  *log.Logger
+	adaptors             *adaptors.PostgresAdapter
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -41,7 +42,6 @@ func (p *pitchlakePlugin) Init() error {
 		return err
 	}
 	p.db = db
-	p.prevState = previousState
 	p.vaultAddress = vaultAddress
 	p.log = log.Default()
 	return nil
@@ -84,41 +84,54 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 				//If the event is deposit/withdraw update lp balance
 			} else {
 
-				for _, address := range p.roundAddresses {
-					if event.From.Equal(address) {
+				for _, roundAddress := range p.roundAddresses {
+					if event.From.Equal(roundAddress) {
 						eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
 						if err != nil {
 							log.Fatalf("Failed to decode event: %v", err)
 							return err
 						}
-						if event.From.Equal(address) {
-							switch eventName {
-							case "AuctionStarted":
-								p.db.UpdateOptionRoundFields(address.String(), map[string]interface{}{
-									"AvailableOptions":  event.Data[0],
-									"StartingLiquidity": event.Data[1],
-								})
-								p.db.UpdateAllLiquidityProvidersBalancesAuctionStart()
-								p.db.UpdateVaultBalancesAuctionStart()
-								break
-							case "AuctionEnded":
-								p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd()
-								p.db.UpdateVaultBalancesAuctionEnd()
-								break
-							case "OptionRoundSettled":
-								break
-							case "BidAccepted":
-								break
-							case "BidUpdated":
-								break
-							case "OptionsMinted":
-								break
-							case "UnusedBidsRefunded":
-								break
-							case "OptionsExercised":
-								break
-							}
+						switch eventName {
+						case "AuctionStarted":
+							p.db.UpdateOptionRoundFields(roundAddress.String(), map[string]interface{}{
+								"available_options":  event.Data[0],
+								"starting_liquidity": event.Data[1],
+							})
+							p.db.UpdateAllLiquidityProvidersBalancesAuctionStart()
+							p.db.UpdateVaultBalancesAuctionStart()
+							break
+						case "AuctionEnded":
+							var optionsSold, clearingPrice, clearingNonce, clearingOptionsSold uint64
+							event.Data[0].SetUint64(optionsSold)
+							event.Data[3].SetUint64(clearingPrice)
+							event.Data[1].SetUint64(clearingNonce)
+							event.Data[2].SetUint64(clearingOptionsSold)
+							premiums := optionsSold * clearingPrice
+
+							var unsoldLiquidity = p.prevStateOptionRound.StartingLiquidity - p.prevStateOptionRound.StartingLiquidity*p.prevStateOptionRound.SoldOptions/p.prevStateOptionRound.AvailableOptions
+							p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums)
+							p.db.UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums)
+							p.db.UpdateBiddersAuctionEnd(clearingPrice, optionsSold, p.prevStateVault.CurrentRound, clearingOptionsSold)
+							p.db.UpdateOptionRoundAuctionEnd(roundAddress.String(), clearingPrice, optionsSold)
+							break
+						case "OptionRoundSettled":
+							p.db.UpdateVaultBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity)
+							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity)
+							break
+						case "BidAccepted":
+							break
+						case "BidUpdated":
+							break
+						case "OptionsMinted":
+							break
+						case "UnusedBidsRefunded":
+							break
+						case "OptionsExercised":
+							break
+						case "Transfer":
+							break
 						}
+
 					}
 				}
 			}
