@@ -73,15 +73,9 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 					var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
 					p.db.UpsertLiquidityProviderState(newLPState)
 					p.db.UpdateVaultState(newVaultState)
-					break
 				case "OptionRoundDeployed":
-					break
 				}
-				//Event is from the contract, perform actions here
 
-				//If the event is a state transition, update locked unlocked balances
-
-				//If the event is deposit/withdraw update lp balance
 			} else {
 
 				for _, roundAddress := range p.roundAddresses {
@@ -99,7 +93,6 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							})
 							p.db.UpdateAllLiquidityProvidersBalancesAuctionStart()
 							p.db.UpdateVaultBalancesAuctionStart()
-							break
 						case "AuctionEnded":
 							var optionsSold, clearingPrice, clearingNonce, clearingOptionsSold uint64
 							event.Data[0].SetUint64(optionsSold)
@@ -113,25 +106,52 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							p.db.UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums)
 							p.db.UpdateBiddersAuctionEnd(clearingPrice, optionsSold, p.prevStateVault.CurrentRound, clearingOptionsSold)
 							p.db.UpdateOptionRoundAuctionEnd(roundAddress.String(), clearingPrice, optionsSold)
-							break
 						case "OptionRoundSettled":
 							var totalPayout uint64
 							event.Data[0].SetUint64(totalPayout)
 							p.db.UpdateVaultBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity)
 							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(p.prevStateOptionRound.RoundID, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout)
-							break
 						case "BidAccepted":
-							break
+							var bid models.Bid
+							var bidAmount, bidPrice, bidNonce uint64
+							event.Data[0].SetUint64(bidNonce)
+
+							event.Data[2].SetUint64(bidAmount)
+							event.Data[3].SetUint64(bidPrice)
+							bid.Address = event.Keys[0].String()
+							bid.BidID = event.Data[1].String()
+							bid.RoundID = p.prevStateOptionRound.RoundID
+							p.db.CreateBid(&bid)
 						case "BidUpdated":
-							break
+
 						case "OptionsMinted":
-							break
+							optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							if err != nil {
+								return err
+							}
+
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+								"tokenizable_options": 0,
+							})
 						case "UnusedBidsRefunded":
-							break
+							optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							if err != nil {
+								return err
+							}
+
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+								"refundable_balance": 0,
+							})
 						case "OptionsExercised":
-							break
+							optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							if err != nil {
+								return err
+							}
+
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+								"tokenizable_options": 0,
+							})
 						case "Transfer":
-							break
 						}
 
 					}

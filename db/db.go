@@ -324,6 +324,14 @@ func (db *DB) GetOptionRound(id uint) (*models.OptionRound, error) {
 	return &or, nil
 }
 
+func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, error) {
+	var or models.OptionRound
+	if err := db.conn.First(&or).Where("address = ?", address).Error; err != nil {
+		return nil, err
+	}
+	return &or, nil
+}
+
 // UpdateOptionRound updates an existing OptionRound record
 func (db *DB) UpdateOptionRound(or *models.OptionRound) error {
 	if err := db.conn.Save(or).Error; err != nil {
