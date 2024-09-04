@@ -46,33 +46,42 @@ func (db *DB) Close() error {
 	return sqlDB.Close()
 }
 
-func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart() error {
+func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber uint64) error {
 	return db.conn.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
 		"locked_balance":   gorm.Expr("unlocked_balance"),
 		"unlocked_balance": 0,
+		"last_block":       blockNumber,
 	}).Error
 }
 
-func (db *DB) UpdateVaultBalancesAuctionStart() error {
-	return db.conn.Model(models.VaultState{}).Updates(map[string]interface{}{"unlocked_balance": 0, "locked_balance": gorm.Expr("unlocked_balance")}).Error
+func (db *DB) UpdateVaultBalancesAuctionStart(blockNumber uint64) error {
+	return db.conn.Model(models.VaultState{}).Updates(map[string]interface{}{
+		"unlocked_balance": 0,
+		"locked_balance":   gorm.Expr("unlocked_balance"),
+		"last_block":       blockNumber,
+	}).Error
 }
 
-func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(startingLiquidity uint64, unsoldLiquidity uint64, premiums uint64) error {
+func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(startingLiquidity, unsoldLiquidity, premiums, blockNumber uint64) error {
 
 	return db.conn.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
 		"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
 		"unlocked_balance": gorm.Expr("unlocked_balance-FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
+		"last_block":       blockNumber,
 	}).Error
 }
 
-func (db *DB) UpdateVaultBalancesAuctionEnd(unsoldLiquidity uint64, premiums uint64) error {
+func (db *DB) UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums, blockNumber uint64) error {
 
 	return db.conn.Model(models.VaultState{}).Updates(map[string]interface{}{
 		"unlocked_balance": gorm.Expr("unlocked_balance+?+?", unsoldLiquidity, premiums),
-		"locked_balance":   gorm.Expr("locked_balance-?", unsoldLiquidity)}).Error
+		"locked_balance":   gorm.Expr("locked_balance-?", unsoldLiquidity),
+		"last_block":       blockNumber,
+	}).Error
+
 }
 
-func (db *DB) UpdateOptionRoundAuctionEnd(address string, clearingPrice uint64, optionsSold uint64) error {
+func (db *DB) UpdateOptionRoundAuctionEnd(address string, clearingPrice, optionsSold uint64) error {
 	err := db.UpdateOptionRoundFields(address, map[string]interface{}{
 		"clearing_price": clearingPrice,
 		"options_sold":   optionsSold,
@@ -82,7 +91,7 @@ func (db *DB) UpdateOptionRoundAuctionEnd(address string, clearingPrice uint64, 
 	}
 	return nil
 }
-func (db *DB) UpdateBiddersAuctionEnd(clearingPrice uint64, clearingOptionsSold uint64, roundID uint64, clearingNonce uint64) error {
+func (db *DB) UpdateBiddersAuctionEnd(clearingPrice, clearingOptionsSold, roundID, clearingNonce uint64) error {
 	bidsAbove, err := db.GetBidsAboveClearingForRound(roundID, clearingPrice, clearingNonce)
 	if err != nil {
 		return err
@@ -125,18 +134,22 @@ func (db *DB) UpdateBiddersAuctionEnd(clearingPrice uint64, clearingOptionsSold 
 	return nil
 }
 
-func (db *DB) UpdateVaultBalancesOptionSettle(remainingLiquidty uint64, remainingLiquidityStashed uint64) error {
+func (db *DB) UpdateVaultBalancesOptionSettle(remainingLiquidty, remainingLiquidityStashed, blockNumber uint64) error {
 
 	return db.conn.Model(models.VaultState{}).Updates(map[string]interface{}{
 		"stashed_balance":  gorm.Expr("stashed_balance+ ? ", remainingLiquidityStashed),
 		"unlocked_balance": gorm.Expr("unlocked_balance+?", remainingLiquidty-remainingLiquidityStashed),
-		"locked_balance":   0}).Error
+		"locked_balance":   0,
+		"last_block":       blockNumber,
+	}).Error
+
 }
-func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundID uint64, startingLiquidity uint64, remainingLiquidty uint64, totalPayout uint64) error {
+func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundID, startingLiquidity, remainingLiquidty, totalPayout, blockNumber uint64) error {
 
 	db.conn.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
 		"locked_balance":   0,
 		"unlocked_balance": gorm.Expr("unlocked_balance + locked_balance - locked_balance*?/?", totalPayout, startingLiquidity),
+		"last_block":       blockNumber,
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundID)
 	if err != nil {
@@ -184,6 +197,14 @@ func (db *DB) CreateVault(vault *models.Vault) error {
 func (db *DB) GetVault(id uint) (*models.Vault, error) {
 	var vault models.Vault
 	if err := db.conn.First(&vault, id).Error; err != nil {
+		return nil, err
+	}
+	return &vault, nil
+
+}
+func (db *DB) GetVaultByAddress(address string) (*models.Vault, error) {
+	var vault models.Vault
+	if err := db.conn.Where("address = ?", address).First(&vault).Error; err != nil {
 		return nil, err
 	}
 	return &vault, nil
@@ -238,13 +259,14 @@ func (db *DB) UpdateLiquidityProvider(lp *models.LiquidityProvider) error {
 	return nil
 }
 
-func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState) error {
+func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, blockNumber uint64) error {
 	// Attempt to update the record based on the composite key (address and block_number)
 	if err := db.conn.Model(&models.LiquidityProvider{}).
 		Where("address = ?", lp.Address).
 		Updates(map[string]interface{}{
 			"unlocked_balance": lp.UnlockedBalance,
 			"locked_balance":   lp.LockedBalance,
+			"last_block":       blockNumber,
 		}).Error; err != nil {
 
 		// Handle the case where the record was not found
@@ -344,6 +366,13 @@ func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interfa
 	return db.conn.Model(models.OptionRound{}).Where("address = ?", address).Updates(updates).Error
 }
 
+func (db *DB) UpdateVaultFields(updates map[string]interface{}) error {
+	return db.conn.Model(models.OptionRound{}).Updates(updates).Error
+}
+func (db *DB) UpdateLiquidityProviderFields(address string, updates map[string]interface{}) error {
+	return db.conn.Model(models.LiquidityProviderState{}).Where("address = ?", address).Updates(updates).Error
+}
+
 // DeleteOptionRound deletes an OptionRound record by its ID
 func (db *DB) DeleteOptionRound(id uint) error {
 	if err := db.conn.Delete(&models.OptionRound{}, id).Error; err != nil {
@@ -424,4 +453,84 @@ func (db *DB) GetAllQueuedLiquidityForRound(roundID uint64) ([]models.QueuedLiqu
 		return nil, err
 	}
 	return queuedAmounts, nil
+}
+
+// Extra Functiotatens
+func (db *DB) GetVaultState(address string) {
+
+}
+
+// Revert Functions
+func (db *DB) RevertVaultState(address string, blockNumber uint64) error {
+	var vaultState models.VaultState
+	var vaultHistoric, postRevert models.Vault
+	if err := db.conn.Where("address = ? AND last_block = ?", address, blockNumber).First(&vaultState).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	if err := db.conn.Where("address = ? AND block_number = ?", address, blockNumber).First(&vaultHistoric).Error; err != nil {
+		return err
+	}
+
+	if err := db.conn.Delete(&vaultHistoric).Error; err != nil {
+		return err
+	}
+
+	if err := db.conn.Where("address = ?", address).
+		Order("latest_block DESC").
+		First(&postRevert).Error; err != nil {
+		return nil
+	}
+
+	if err := db.conn.Where("address = ?").Updates(map[string]interface{}{
+		"unlocked_balance": postRevert.UnlockedBalance,
+		"locked_balance":   postRevert.LockedBalance,
+		"stashed_balance":  postRevert.StashedBalance,
+		"last_block":       postRevert.BlockNumber,
+	}).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (db *DB) RevertLPState(address string, blockNumber uint64) error {
+	var lpState models.LiquidityProviderState
+	var lpHistoric, postRevert models.LiquidityProvider
+	if err := db.conn.Where("address = ? AND last_block = ?", address, blockNumber).First(&lpState).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	if err := db.conn.Where("address = ? AND block_number = ?", address, blockNumber).First(&lpHistoric).Error; err != nil {
+		return err
+	}
+
+	if err := db.conn.Delete(&lpHistoric).Error; err != nil {
+		return err
+	}
+
+	if err := db.conn.Where("address = ?", address).
+		Order("latest_block DESC").
+		First(&postRevert).Error; err != nil {
+		return nil
+	}
+
+	if err := db.conn.Where("address = ?").Updates(map[string]interface{}{
+		"unlocked_balance": postRevert.UnlockedBalance,
+		"locked_balance":   postRevert.LockedBalance,
+		"stashed_balance":  postRevert.StashedBalance,
+		"last_block":       postRevert.BlockNumber,
+	}).Error; err != nil {
+		return err
+	}
+
+	return nil
 }

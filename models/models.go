@@ -5,10 +5,11 @@ import (
 )
 
 type Vault struct {
-	gorm.Model          // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
-	BlockNumber     int `gorm:"column:block_number;not null;primaryKey"`
-	UnlockedBalance int `gorm:"column:unlocked_balance;not null"`
-	LockedBalance   int `gorm:"column:locked_balance;not null"`
+	gorm.Model             // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
+	BlockNumber     uint64 `gorm:"column:block_number;not null;primaryKey"`
+	UnlockedBalance uint64 `gorm:"column:unlocked_balance;not null"`
+	LockedBalance   uint64 `gorm:"column:locked_balance;not null"`
+	StashedBalance  uint64 `gorm:"column:stashed_balance;not null"`
 }
 
 type LiquidityProvider struct {
@@ -25,8 +26,8 @@ type OptionBuyer struct {
 	Address    string `gorm:"column:address;not null"`
 	//Maybe this is not required and can be directly fetched as a view/index on the bids table
 	//Bids       string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
-	RoundID            int    `gorm:"column:round_id;not null"`
-	TokenizableOptions int    `gorm:"column:tokenizable_options;"`
+	RoundID            uint64 `gorm:"column:round_id;not null"`
+	TokenizableOptions uint64 `gorm:"column:tokenizable_options;"`
 	RefundableBalance  uint64 `gorm:"column:refundable_balance;"`
 }
 
@@ -57,16 +58,19 @@ type VaultState struct {
 	CurrentRoundAddress string `gorm:"column:current_round_address;not null"`
 	UnlockedBalance     uint64 `gorm:"column:unlocked_balance;not null"`
 	LockedBalance       uint64 `gorm:"column:locked_balance;not null"`
+	StashedBalance      uint64 `gorm:"column:stashed_balance;not null"`
 	Address             string `gorm:"column:address;not null"`
+	LastBlock           uint64 `gorm:"column:last_block;"`
 }
 
 type LiquidityProviderState struct {
 	gorm.Model
 	Address         string `gorm:"column:address;not null;primaryKey"`
-	UnlockedBalance int    `gorm:"column:unlocked_balance;not null"`
-	LockedBalance   int    `gorm:"column:locked_balance;not null"`
-	StashedBalance  int    `gorm:"column:stashed_balance;"`
-	QueuedBalance   int    `gorm:"column:queued_balance;"`
+	UnlockedBalance uint64 `gorm:"column:unlocked_balance;not null"`
+	LockedBalance   uint64 `gorm:"column:locked_balance;not null"`
+	StashedBalance  uint64 `gorm:"column:stashed_balance;"`
+	QueuedBalance   uint64 `gorm:"column:queued_balance;"`
+	LastBlock       uint64 `gorm:"column:last_block;"`
 }
 
 type QueuedLiquidity struct {

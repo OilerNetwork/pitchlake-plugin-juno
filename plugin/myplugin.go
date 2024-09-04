@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"junoplugin/adaptors"
 	"junoplugin/db"
 	"junoplugin/events"
@@ -65,14 +64,18 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 					return err
 				}
 				switch eventName {
-				case "Deposit", "Withdraw", "WithdrawalQueued",
-					"QueuedLiquidityCollected":
+				case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
+
+					var lpLocked, lpUnlocked, vaultLocked, vaultUnlocked uint64
+					event.Data[0].SetUint64(lpLocked)
+					event.Data[0].SetUint64(lpUnlocked)
+					event.Data[0].SetUint64(vaultLocked)
+					event.Data[0].SetUint64(vaultUnlocked)
 
 					//Map the other parameters as well
 					var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
-					var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
-					p.db.UpsertLiquidityProviderState(newLPState)
-					p.db.UpdateVaultState(newVaultState)
+					p.db.UpsertLiquidityProviderState(newLPState, block.Number)
+					p.db.UpdateVaultFields(map[string]interface{}{"unlocked_balance": vaultUnlocked, "locked_balance": vaultLocked, "latest_block": block.Number})
 				case "OptionRoundDeployed":
 				}
 
@@ -91,8 +94,8 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 								"available_options":  event.Data[0],
 								"starting_liquidity": event.Data[1],
 							})
-							p.db.UpdateAllLiquidityProvidersBalancesAuctionStart()
-							p.db.UpdateVaultBalancesAuctionStart()
+							p.db.UpdateAllLiquidityProvidersBalancesAuctionStart(block.Number)
+							p.db.UpdateVaultBalancesAuctionStart(block.Number)
 						case "AuctionEnded":
 							var optionsSold, clearingPrice, clearingNonce, clearingOptionsSold uint64
 							event.Data[0].SetUint64(optionsSold)
@@ -102,15 +105,15 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							premiums := optionsSold * clearingPrice
 
 							var unsoldLiquidity = p.prevStateOptionRound.StartingLiquidity - p.prevStateOptionRound.StartingLiquidity*p.prevStateOptionRound.SoldOptions/p.prevStateOptionRound.AvailableOptions
-							p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums)
-							p.db.UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums)
+							p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums, block.Number)
+							p.db.UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums, block.Number)
 							p.db.UpdateBiddersAuctionEnd(clearingPrice, optionsSold, p.prevStateVault.CurrentRound, clearingOptionsSold)
 							p.db.UpdateOptionRoundAuctionEnd(roundAddress.String(), clearingPrice, optionsSold)
 						case "OptionRoundSettled":
 							var totalPayout uint64
 							event.Data[0].SetUint64(totalPayout)
-							p.db.UpdateVaultBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity)
-							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(p.prevStateOptionRound.RoundID, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout)
+							p.db.UpdateVaultBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, block.Number)
+							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(p.prevStateOptionRound.RoundID, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout, block.Number)
 						case "BidAccepted":
 							var bid models.Bid
 							var bidAmount, bidPrice, bidNonce uint64
@@ -163,59 +166,113 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 }
 
 func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, reverseStateDiff *core.StateDiff) error {
-	p.log.Println("ExamplePlugin RevertBlock called")
-	return nil
-}
+	p.log.Println("ExamplePlugin NewBlock called")
+	length := len(from.Block.Receipts)
+	for i := length - 1; i >= 0; i-- {
+		receipt := from.Block.Receipts[i]
+		for _, event := range receipt.Events {
+			if event.From.Equal(p.vaultAddress) {
+				eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
+				if err != nil {
+					log.Fatalf("Failed to decode event: %v", err)
+					return err
+				}
+				switch eventName {
+				case "Deposit", "Withdraw",
+					"QueuedLiquidityCollected": //Add withdraw queue
 
-func onDeposit([]any) error {
-	//get previous value
+					//Map the other parameters as well
+					// var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
+					// var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
+					// p.db.UpsertLiquidityProviderState(newLPState)
+					// p.db.UpdateVaultState(newVaultState)
+					p.db.RevertVaultState(p.vaultAddress.String(), from.Block.Number)
+					p.db.RevertLPState(event.Keys[0].String(), from.Block.Number)
+				case "OptionRoundDeployed":
+				}
 
-	//insert new value
+			} else {
 
-	var query = `INSERT INTO public."Liquidity_Providers"(
-	address, unlocked_balance, locked_balance, block_number)
-	VALUES (?, ?, ?, ?);`
-	fmt.Println(query)
-	return nil
-}
+				for _, roundAddress := range p.roundAddresses {
+					if event.From.Equal(roundAddress) {
+						eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
+						if err != nil {
+							log.Fatalf("Failed to decode event: %v", err)
+							return err
+						}
+						switch eventName {
+						case "AuctionStarted":
+							// p.db.UpdateOptionRoundFields(roundAddress.String(), map[string]interface{}{
+							// 	"available_options":  event.Data[0],
+							// 	"starting_liquidity": event.Data[1],
+							// })
+							// p.db.UpdateAllLiquidityProvidersBalancesAuctionStart()
+							// p.db.UpdateVaultBalancesAuctionStart()
+						case "AuctionEnded":
+							// var optionsSold, clearingPrice, clearingNonce, clearingOptionsSold uint64
+							// event.Data[0].SetUint64(optionsSold)
+							// event.Data[3].SetUint64(clearingPrice)
+							// event.Data[1].SetUint64(clearingNonce)
+							// event.Data[2].SetUint64(clearingOptionsSold)
+							// premiums := optionsSold * clearingPrice
 
-func onWithdrawal() error {
-	return nil
-}
+							// var unsoldLiquidity = p.prevStateOptionRound.StartingLiquidity - p.prevStateOptionRound.StartingLiquidity*p.prevStateOptionRound.SoldOptions/p.prevStateOptionRound.AvailableOptions
+							// p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums)
+							// p.db.UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums)
+							// p.db.UpdateBiddersAuctionEnd(clearingPrice, optionsSold, p.prevStateVault.CurrentRound, clearingOptionsSold)
+							// p.db.UpdateOptionRoundAuctionEnd(roundAddress.String(), clearingPrice, optionsSold)
+						case "OptionRoundSettled":
+							// var totalPayout uint64
+							// event.Data[0].SetUint64(totalPayout)
+							// p.db.UpdateVaultBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity)
+							// p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(p.prevStateOptionRound.RoundID, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout)
+						case "BidAccepted":
+							// var bid models.Bid
+							// var bidAmount, bidPrice, bidNonce uint64
+							// event.Data[0].SetUint64(bidNonce)
 
-func onWithdrawalQueued() error {
-	return nil
-}
+							// event.Data[2].SetUint64(bidAmount)
+							// event.Data[3].SetUint64(bidPrice)
+							// bid.Address = event.Keys[0].String()
+							// bid.BidID = event.Data[1].String()
+							// bid.RoundID = p.prevStateOptionRound.RoundID
+							// p.db.CreateBid(&bid)
+						case "BidUpdated":
 
-func onQueuedLiquidityCollected() error {
-	return nil
-}
+						case "OptionsMinted":
+							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							// if err != nil {
+							// 	return err
+							// }
 
-func onOptionRoundDeployed() error {
-	return nil
-}
+							// p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+							// 	"tokenizable_options": 0,
+							// })
+						case "UnusedBidsRefunded":
+							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							// if err != nil {
+							// 	return err
+							// }
 
-func onAuctionStarted() error {
-	return nil
-}
-func onBidAccepted() error {
-	return nil
-}
-func onBidUpdated() error {
-	return nil
-}
-func onAuctionEnded() error {
-	return nil
-}
-func onOptionRoundSettled() error {
-	return nil
-}
-func onOptionsExercised() error {
-	return nil
-}
-func onUnusedBidsRefunded() error {
-	return nil
-}
-func onOptionsMinted() error {
+							// p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+							// 	"refundable_balance": 0,
+							// })
+						case "OptionsExercised":
+							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							// if err != nil {
+							// 	return err
+							// }
+
+							// p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+							// 	"tokenizable_options": 0,
+							// })
+						case "Transfer":
+						}
+
+					}
+				}
+			}
+		}
+	}
 	return nil
 }
