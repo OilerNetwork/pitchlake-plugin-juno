@@ -93,6 +93,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							p.db.UpdateOptionRoundFields(roundAddress.String(), map[string]interface{}{
 								"available_options":  event.Data[0],
 								"starting_liquidity": event.Data[1],
+								"state":              "Auctioning",
 							})
 							p.db.UpdateAllLiquidityProvidersBalancesAuctionStart(block.Number)
 							p.db.UpdateVaultBalancesAuctionStart(block.Number)
@@ -110,10 +111,16 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							p.db.UpdateBiddersAuctionEnd(clearingPrice, optionsSold, p.prevStateVault.CurrentRound, clearingOptionsSold)
 							p.db.UpdateOptionRoundAuctionEnd(roundAddress.String(), clearingPrice, optionsSold)
 						case "OptionRoundSettled":
-							var totalPayout uint64
+							var totalPayout, settlementPrice uint64
 							event.Data[0].SetUint64(totalPayout)
+							event.Data[2].SetUint64(settlementPrice)
 							p.db.UpdateVaultBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, block.Number)
 							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(p.prevStateOptionRound.RoundID, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout, block.Number)
+							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
+								"settlement_price": settlementPrice,
+								"total_payout":     totalPayout,
+								"state":            "Settled",
+							})
 						case "BidAccepted":
 							var bid models.Bid
 							var bidAmount, bidPrice, bidNonce uint64
@@ -202,41 +209,37 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 						}
 						switch eventName {
 						case "AuctionStarted":
-							// p.db.UpdateOptionRoundFields(roundAddress.String(), map[string]interface{}{
-							// 	"available_options":  event.Data[0],
-							// 	"starting_liquidity": event.Data[1],
-							// })
-							// p.db.UpdateAllLiquidityProvidersBalancesAuctionStart()
-							// p.db.UpdateVaultBalancesAuctionStart()
+							p.db.RevertVaultState(p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertAllLPState(from.Block.Number)
+							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
+								"available_options":  0,
+								"starting_liquidity": 0,
+								"state":              "Open",
+							})
 						case "AuctionEnded":
-							// var optionsSold, clearingPrice, clearingNonce, clearingOptionsSold uint64
-							// event.Data[0].SetUint64(optionsSold)
-							// event.Data[3].SetUint64(clearingPrice)
-							// event.Data[1].SetUint64(clearingNonce)
-							// event.Data[2].SetUint64(clearingOptionsSold)
-							// premiums := optionsSold * clearingPrice
+							p.db.RevertVaultState(p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertAllLPState(from.Block.Number)
+							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
+								"clearing_price": nil,
+								"options_sold":   nil,
+								"state":          "Auctioning",
+							})
+							p.db.UpdateAllOptionBuyerFields(p.prevStateOptionRound.RoundID, map[string]interface{}{
+								"tokenizable_options": 0,
+								"refundable_balance":  0,
+							})
 
-							// var unsoldLiquidity = p.prevStateOptionRound.StartingLiquidity - p.prevStateOptionRound.StartingLiquidity*p.prevStateOptionRound.SoldOptions/p.prevStateOptionRound.AvailableOptions
-							// p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums)
-							// p.db.UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums)
-							// p.db.UpdateBiddersAuctionEnd(clearingPrice, optionsSold, p.prevStateVault.CurrentRound, clearingOptionsSold)
-							// p.db.UpdateOptionRoundAuctionEnd(roundAddress.String(), clearingPrice, optionsSold)
 						case "OptionRoundSettled":
-							// var totalPayout uint64
-							// event.Data[0].SetUint64(totalPayout)
-							// p.db.UpdateVaultBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity)
-							// p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(p.prevStateOptionRound.RoundID, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout)
+							p.db.RevertVaultState(p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertAllLPState(from.Block.Number)
+							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
+								"settlement_price": 0,
+								"total_payout":     0,
+								"state":            "Running",
+							})
 						case "BidAccepted":
-							// var bid models.Bid
-							// var bidAmount, bidPrice, bidNonce uint64
-							// event.Data[0].SetUint64(bidNonce)
-
-							// event.Data[2].SetUint64(bidAmount)
-							// event.Data[3].SetUint64(bidPrice)
-							// bid.Address = event.Keys[0].String()
-							// bid.BidID = event.Data[1].String()
-							// bid.RoundID = p.prevStateOptionRound.RoundID
-							// p.db.CreateBid(&bid)
+							id := event.Data[1].String()
+							p.db.DeleteBid(id, p.prevStateOptionRound.RoundID)
 						case "BidUpdated":
 
 						case "OptionsMinted":

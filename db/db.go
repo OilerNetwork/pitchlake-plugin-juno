@@ -85,6 +85,7 @@ func (db *DB) UpdateOptionRoundAuctionEnd(address string, clearingPrice, options
 	err := db.UpdateOptionRoundFields(address, map[string]interface{}{
 		"clearing_price": clearingPrice,
 		"options_sold":   optionsSold,
+		"state":          "Running",
 	})
 	if err != nil {
 		return err
@@ -317,8 +318,12 @@ func (db *DB) UpdateOptionBuyer(ob *models.OptionBuyer) error {
 	return nil
 }
 
-func (db *DB) UpdateOptionBuyerFields(address string, round_id uint64, updates map[string]interface{}) error {
-	return db.conn.Model(models.OptionRound{}).Where("address = ? AND round_id = ?", address, round_id).Updates(updates).Error
+func (db *DB) UpdateOptionBuyerFields(address string, roundID uint64, updates map[string]interface{}) error {
+	return db.conn.Model(models.OptionRound{}).Where("address = ? AND round_id = ?", address, roundID).Updates(updates).Error
+}
+
+func (db *DB) UpdateAllOptionBuyerFields(roundID uint64, updates map[string]interface{}) error {
+	return db.conn.Model(models.OptionRound{}).Where("round_id=?", roundID).Updates(updates).Error
 }
 
 // DeleteOptionBuyer deletes an OptionBuyer record by its ID
@@ -407,8 +412,8 @@ func (db *DB) UpdateBid(bid *models.Bid) error {
 }
 
 // DeleteBid deletes a Bid record by its ID
-func (db *DB) DeleteBid(id uint) error {
-	if err := db.conn.Delete(&models.Bid{}, id).Error; err != nil {
+func (db *DB) DeleteBid(bidId string, roundID uint64) error {
+	if err := db.conn.Model(&models.Bid{}).Where("round_id=").Error; err != nil {
 		return err
 	}
 	return nil
@@ -495,6 +500,44 @@ func (db *DB) RevertVaultState(address string, blockNumber uint64) error {
 		return err
 	}
 
+	return nil
+}
+
+func (db *DB) RevertAllLPState(blockNumber uint64) error {
+	var lpStates []models.LiquidityProviderState
+	var lpHistoric, postRevert models.LiquidityProvider
+	if err := db.conn.Where("last_block = ?", blockNumber).Find(&lpStates).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		} else {
+			return err
+		}
+	}
+
+	for _, lpState := range lpStates {
+		if err := db.conn.Where("address = ? AND block_number = ?", lpState.Address, blockNumber).First(&lpHistoric).Error; err != nil {
+			return err
+		}
+
+		if err := db.conn.Delete(&lpHistoric).Error; err != nil {
+			return err
+		}
+
+		if err := db.conn.Where("address = ?", lpState.Address).
+			Order("latest_block DESC").
+			First(&postRevert).Error; err != nil {
+			return nil
+		}
+
+		if err := db.conn.Where("address = ?").Updates(map[string]interface{}{
+			"unlocked_balance": postRevert.UnlockedBalance,
+			"locked_balance":   postRevert.LockedBalance,
+			"stashed_balance":  postRevert.StashedBalance,
+			"last_block":       postRevert.BlockNumber,
+		}).Error; err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
