@@ -185,79 +185,12 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundID, startingL
 	*/
 	return nil
 }
-
-// CreateVault creates a new Vault record in the database
-func (db *DB) CreateVault(vault *models.Vault) error {
-	if err := db.conn.Create(vault).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// GetVault retrieves a Vault record by its ID
-func (db *DB) GetVault(id uint) (*models.Vault, error) {
-	var vault models.Vault
-	if err := db.conn.First(&vault, id).Error; err != nil {
-		return nil, err
-	}
-	return &vault, nil
-
-}
 func (db *DB) GetVaultByAddress(address string) (*models.Vault, error) {
 	var vault models.Vault
 	if err := db.conn.Where("address = ?", address).First(&vault).Error; err != nil {
 		return nil, err
 	}
 	return &vault, nil
-}
-
-// UpdateVault updates an existing Vault record
-func (db *DB) UpdateVault(vault *models.Vault) error {
-	if err := db.conn.Save(vault).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// UpdateVaultState updates the existing VaultState record
-func (db *DB) UpdateVaultState(vault *models.VaultState) error {
-	if err := db.conn.Save(vault).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// DeleteVault deletes a Vault record by its ID
-func (db *DB) DeleteVault(id uint) error {
-	if err := db.conn.Delete(&models.Vault{}, id).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// CreateLiquidityProvider creates a new LiquidityProvider record in the database
-func (db *DB) CreateLiquidityProvider(lp *models.LiquidityProvider) error {
-	if err := db.conn.Create(lp).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// GetLiquidityProvider retrieves a LiquidityProvider record by its ID
-func (db *DB) GetLiquidityProvider(id uint) (*models.LiquidityProvider, error) {
-	var lp models.LiquidityProvider
-	if err := db.conn.First(&lp, id).Error; err != nil {
-		return nil, err
-	}
-	return &lp, nil
-}
-
-// UpdateLiquidityProvider updates an existing LiquidityProvider record
-func (db *DB) UpdateLiquidityProvider(lp *models.LiquidityProvider) error {
-	if err := db.conn.Save(lp).Error; err != nil {
-		return err
-	}
-	return nil
 }
 
 func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, blockNumber uint64) error {
@@ -285,39 +218,6 @@ func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, bl
 	return nil
 }
 
-// DeleteLiquidityProvider deletes a LiquidityProvider record by its ID
-func (db *DB) DeleteLiquidityProvider(id uint) error {
-	if err := db.conn.Delete(&models.LiquidityProvider{}, id).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// CreateOptionBuyer creates a new OptionBuyer record in the database
-func (db *DB) CreateOptionBuyer(ob *models.OptionBuyer) error {
-	if err := db.conn.Create(ob).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// GetOptionBuyer retrieves an OptionBuyer record by its ID
-func (db *DB) GetOptionBuyer(id uint) (*models.OptionBuyer, error) {
-	var ob models.OptionBuyer
-	if err := db.conn.First(&ob, id).Error; err != nil {
-		return nil, err
-	}
-	return &ob, nil
-}
-
-// UpdateOptionBuyer updates an existing OptionBuyer record
-func (db *DB) UpdateOptionBuyer(ob *models.OptionBuyer) error {
-	if err := db.conn.Save(ob).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
 func (db *DB) UpdateOptionBuyerFields(address string, roundID uint64, updates map[string]interface{}) error {
 	return db.conn.Model(models.OptionRound{}).Where("address = ? AND round_id = ?", address, roundID).Updates(updates).Error
 }
@@ -326,45 +226,12 @@ func (db *DB) UpdateAllOptionBuyerFields(roundID uint64, updates map[string]inte
 	return db.conn.Model(models.OptionRound{}).Where("round_id=?", roundID).Updates(updates).Error
 }
 
-// DeleteOptionBuyer deletes an OptionBuyer record by its ID
-func (db *DB) DeleteOptionBuyer(id uint) error {
-	if err := db.conn.Delete(&models.OptionBuyer{}, id).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// CreateOptionRound creates a new OptionRound record in the database
-func (db *DB) CreateOptionRound(or *models.OptionRound) error {
-	if err := db.conn.Create(or).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// GetOptionRound retrieves an OptionRound record by its ID
-func (db *DB) GetOptionRound(id uint) (*models.OptionRound, error) {
-	var or models.OptionRound
-	if err := db.conn.First(&or, id).Error; err != nil {
-		return nil, err
-	}
-	return &or, nil
-}
-
 func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, error) {
 	var or models.OptionRound
 	if err := db.conn.First(&or).Where("address = ?", address).Error; err != nil {
 		return nil, err
 	}
 	return &or, nil
-}
-
-// UpdateOptionRound updates an existing OptionRound record
-func (db *DB) UpdateOptionRound(or *models.OptionRound) error {
-	if err := db.conn.Save(or).Error; err != nil {
-		return err
-	}
-	return nil
 }
 
 func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
@@ -394,26 +261,9 @@ func (db *DB) CreateBid(bid *models.Bid) error {
 	return nil
 }
 
-// GetBid retrieves a Bid record by its ID
-func (db *DB) GetBid(id uint) (*models.Bid, error) {
-	var bid models.Bid
-	if err := db.conn.First(&bid, id).Error; err != nil {
-		return nil, err
-	}
-	return &bid, nil
-}
-
-// UpdateBid updates an existing Bid record
-func (db *DB) UpdateBid(bid *models.Bid) error {
-	if err := db.conn.Save(bid).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
 // DeleteBid deletes a Bid record by its ID
-func (db *DB) DeleteBid(bidId string, roundID uint64) error {
-	if err := db.conn.Model(&models.Bid{}).Where("round_id=").Error; err != nil {
+func (db *DB) DeleteBid(bidID string, roundID uint64) error {
+	if err := db.conn.Model(&models.Bid{}).Where("round_id=? AND bid_id=?", roundID, bidID).Error; err != nil {
 		return err
 	}
 	return nil
@@ -460,11 +310,6 @@ func (db *DB) GetAllQueuedLiquidityForRound(roundID uint64) ([]models.QueuedLiqu
 	return queuedAmounts, nil
 }
 
-// Extra Functiotatens
-func (db *DB) GetVaultState(address string) {
-
-}
-
 // Revert Functions
 func (db *DB) RevertVaultState(address string, blockNumber uint64) error {
 	var vaultState models.VaultState
@@ -506,7 +351,7 @@ func (db *DB) RevertVaultState(address string, blockNumber uint64) error {
 func (db *DB) RevertAllLPState(blockNumber uint64) error {
 	var lpStates []models.LiquidityProviderState
 	var lpHistoric, postRevert models.LiquidityProvider
-	if err := db.conn.Where("last_block = ?", blockNumber).Find(&lpStates).Error; err != nil {
+	if err := db.conn.Model(models.LiquidityProviderState{}).Where("last_block = ?", blockNumber).Find(&lpStates).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		} else {
@@ -515,7 +360,7 @@ func (db *DB) RevertAllLPState(blockNumber uint64) error {
 	}
 
 	for _, lpState := range lpStates {
-		if err := db.conn.Where("address = ? AND block_number = ?", lpState.Address, blockNumber).First(&lpHistoric).Error; err != nil {
+		if err := db.conn.Model(models.LiquidityProvider{}).Where("address = ? AND block_number = ?", lpState.Address, blockNumber).First(&lpHistoric).Error; err != nil {
 			return err
 		}
 
@@ -552,7 +397,7 @@ func (db *DB) RevertLPState(address string, blockNumber uint64) error {
 		}
 	}
 
-	if err := db.conn.Where("address = ? AND block_number = ?", address, blockNumber).First(&lpHistoric).Error; err != nil {
+	if err := db.conn.Model(models.LiquidityProvider{}).Where("address = ? AND block_number = ?", address, blockNumber).First(&lpHistoric).Error; err != nil {
 		return err
 	}
 
@@ -560,13 +405,13 @@ func (db *DB) RevertLPState(address string, blockNumber uint64) error {
 		return err
 	}
 
-	if err := db.conn.Where("address = ?", address).
+	if err := db.conn.Model(models.LiquidityProvider{}).Where("address = ?", address).
 		Order("latest_block DESC").
 		First(&postRevert).Error; err != nil {
 		return nil
 	}
 
-	if err := db.conn.Where("address = ?").Updates(map[string]interface{}{
+	if err := db.conn.Model(models.LiquidityProviderState{}).Where("address = ?").Updates(map[string]interface{}{
 		"unlocked_balance": postRevert.UnlockedBalance,
 		"locked_balance":   postRevert.LockedBalance,
 		"stashed_balance":  postRevert.StashedBalance,

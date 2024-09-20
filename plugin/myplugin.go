@@ -65,12 +65,11 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 				}
 				switch eventName {
 				case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
-
 					var lpLocked, lpUnlocked, vaultLocked, vaultUnlocked uint64
 					event.Data[0].SetUint64(lpLocked)
-					event.Data[0].SetUint64(lpUnlocked)
-					event.Data[0].SetUint64(vaultLocked)
-					event.Data[0].SetUint64(vaultUnlocked)
+					event.Data[1].SetUint64(lpUnlocked)
+					event.Data[2].SetUint64(vaultLocked)
+					event.Data[3].SetUint64(vaultUnlocked)
 
 					//Map the other parameters as well
 					var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
