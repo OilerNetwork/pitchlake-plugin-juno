@@ -389,7 +389,7 @@ func (db *DB) RevertAllLPState(tx *gorm.DB, blockNumber uint64) error {
 func (db *DB) RevertLPState(tx *gorm.DB, address string, blockNumber uint64) error {
 	var lpState models.LiquidityProviderState
 	var lpHistoric, postRevert models.LiquidityProvider
-	if err := db.Conn.Where("address = ? AND last_block = ?", address, blockNumber).First(&lpState).Error; err != nil {
+	if err := tx.Where("address = ? AND last_block = ?", address, blockNumber).First(&lpState).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		} else {
@@ -397,21 +397,21 @@ func (db *DB) RevertLPState(tx *gorm.DB, address string, blockNumber uint64) err
 		}
 	}
 
-	if err := db.Conn.Model(models.LiquidityProvider{}).Where("address = ? AND block_number = ?", address, blockNumber).First(&lpHistoric).Error; err != nil {
+	if err := tx.Model(models.LiquidityProvider{}).Where("address = ? AND block_number = ?", address, blockNumber).First(&lpHistoric).Error; err != nil {
 		return err
 	}
 
-	if err := db.Conn.Delete(&lpHistoric).Error; err != nil {
+	if err := tx.Delete(&lpHistoric).Error; err != nil {
 		return err
 	}
 
-	if err := db.Conn.Model(models.LiquidityProvider{}).Where("address = ?", address).
+	if err := tx.Model(models.LiquidityProvider{}).Where("address = ?", address).
 		Order("latest_block DESC").
 		First(&postRevert).Error; err != nil {
 		return nil
 	}
 
-	if err := db.Conn.Model(models.LiquidityProviderState{}).Where("address = ?").Updates(map[string]interface{}{
+	if err := tx.Model(models.LiquidityProviderState{}).Where("address = ?").Updates(map[string]interface{}{
 		"unlocked_balance": postRevert.UnlockedBalance,
 		"locked_balance":   postRevert.LockedBalance,
 		"stashed_balance":  postRevert.StashedBalance,
