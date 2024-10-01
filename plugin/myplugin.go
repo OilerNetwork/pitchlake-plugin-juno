@@ -54,6 +54,7 @@ func (p *pitchlakePlugin) Shutdown() error {
 
 func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpdate, newClasses map[felt.Felt]core.Class) error {
 
+	tx := p.db.Conn.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {
 		for _, event := range receipt.Events {
@@ -73,8 +74,8 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 
 					//Map the other parameters as well
 					var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
-					p.db.UpsertLiquidityProviderState(newLPState, block.Number)
-					p.db.UpdateVaultFields(map[string]interface{}{"unlocked_balance": vaultUnlocked, "locked_balance": vaultLocked, "latest_block": block.Number})
+					p.db.UpsertLiquidityProviderState(tx, newLPState, block.Number)
+					p.db.UpdateVaultFields(tx, map[string]interface{}{"unlocked_balance": vaultUnlocked, "locked_balance": vaultLocked, "latest_block": block.Number})
 				case "OptionRoundDeployed":
 				}
 
@@ -89,13 +90,13 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 						}
 						switch eventName {
 						case "AuctionStarted":
-							p.db.UpdateOptionRoundFields(roundAddress.String(), map[string]interface{}{
+							p.db.UpdateOptionRoundFields(tx, roundAddress.String(), map[string]interface{}{
 								"available_options":  event.Data[0],
 								"starting_liquidity": event.Data[1],
 								"state":              "Auctioning",
 							})
-							p.db.UpdateAllLiquidityProvidersBalancesAuctionStart(block.Number)
-							p.db.UpdateVaultBalancesAuctionStart(block.Number)
+							p.db.UpdateAllLiquidityProvidersBalancesAuctionStart(tx, block.Number)
+							p.db.UpdateVaultBalancesAuctionStart(tx, block.Number)
 						case "AuctionEnded":
 							var optionsSold, clearingPrice, clearingNonce, clearingOptionsSold uint64
 							event.Data[0].SetUint64(optionsSold)
@@ -105,17 +106,17 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							premiums := optionsSold * clearingPrice
 
 							var unsoldLiquidity = p.prevStateOptionRound.StartingLiquidity - p.prevStateOptionRound.StartingLiquidity*p.prevStateOptionRound.SoldOptions/p.prevStateOptionRound.AvailableOptions
-							p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums, block.Number)
-							p.db.UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums, block.Number)
-							p.db.UpdateBiddersAuctionEnd(clearingPrice, optionsSold, p.prevStateVault.CurrentRound, clearingOptionsSold)
-							p.db.UpdateOptionRoundAuctionEnd(roundAddress.String(), clearingPrice, optionsSold)
+							p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(tx, p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums, block.Number)
+							p.db.UpdateVaultBalancesAuctionEnd(tx, unsoldLiquidity, premiums, block.Number)
+							p.db.UpdateBiddersAuctionEnd(tx, clearingPrice, optionsSold, p.prevStateVault.CurrentRound, clearingOptionsSold)
+							p.db.UpdateOptionRoundAuctionEnd(tx, roundAddress.String(), clearingPrice, optionsSold)
 						case "OptionRoundSettled":
 							var totalPayout, settlementPrice uint64
 							event.Data[0].SetUint64(totalPayout)
 							event.Data[2].SetUint64(settlementPrice)
-							p.db.UpdateVaultBalancesOptionSettle(p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, block.Number)
-							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(p.prevStateOptionRound.RoundID, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout, block.Number)
-							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
+							p.db.UpdateVaultBalancesOptionSettle(tx, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, block.Number)
+							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(tx, p.prevStateOptionRound.RoundID, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout, block.Number)
+							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
 								"settlement_price": settlementPrice,
 								"total_payout":     totalPayout,
 								"state":            "Settled",
@@ -130,34 +131,34 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							bid.Address = event.Keys[0].String()
 							bid.BidID = event.Data[1].String()
 							bid.RoundID = p.prevStateOptionRound.RoundID
-							p.db.CreateBid(&bid)
+							p.db.CreateBid(tx, &bid)
 						case "BidUpdated":
 
 						case "OptionsMinted":
-							optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
 							if err != nil {
 								return err
 							}
 
-							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
 								"tokenizable_options": 0,
 							})
 						case "UnusedBidsRefunded":
-							optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
 							if err != nil {
 								return err
 							}
 
-							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
 								"refundable_balance": 0,
 							})
 						case "OptionsExercised":
-							optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
+							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
 							if err != nil {
 								return err
 							}
 
-							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
 								"tokenizable_options": 0,
 							})
 						case "Transfer":
@@ -168,11 +169,13 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 			}
 		}
 	}
+	tx.Commit()
 	return nil
 }
 
 func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, reverseStateDiff *core.StateDiff) error {
 	p.log.Println("ExamplePlugin NewBlock called")
+	tx := p.db.Conn.Begin()
 	length := len(from.Block.Receipts)
 	for i := length - 1; i >= 0; i-- {
 		receipt := from.Block.Receipts[i]
@@ -192,8 +195,8 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 					// var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
 					// p.db.UpsertLiquidityProviderState(newLPState)
 					// p.db.UpdateVaultState(newVaultState)
-					p.db.RevertVaultState(p.vaultAddress.String(), from.Block.Number)
-					p.db.RevertLPState(event.Keys[0].String(), from.Block.Number)
+					p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+					p.db.RevertLPState(tx, event.Keys[0].String(), from.Block.Number)
 				case "OptionRoundDeployed":
 				}
 
@@ -208,30 +211,30 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 						}
 						switch eventName {
 						case "AuctionStarted":
-							p.db.RevertVaultState(p.vaultAddress.String(), from.Block.Number)
-							p.db.RevertAllLPState(from.Block.Number)
-							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
+							p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertAllLPState(tx, from.Block.Number)
+							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
 								"available_options":  0,
 								"starting_liquidity": 0,
 								"state":              "Open",
 							})
 						case "AuctionEnded":
-							p.db.RevertVaultState(p.vaultAddress.String(), from.Block.Number)
-							p.db.RevertAllLPState(from.Block.Number)
-							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
+							p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertAllLPState(tx, from.Block.Number)
+							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
 								"clearing_price": nil,
 								"options_sold":   nil,
 								"state":          "Auctioning",
 							})
-							p.db.UpdateAllOptionBuyerFields(p.prevStateOptionRound.RoundID, map[string]interface{}{
+							p.db.UpdateAllOptionBuyerFields(tx, p.prevStateOptionRound.RoundID, map[string]interface{}{
 								"tokenizable_options": 0,
 								"refundable_balance":  0,
 							})
 
 						case "OptionRoundSettled":
-							p.db.RevertVaultState(p.vaultAddress.String(), from.Block.Number)
-							p.db.RevertAllLPState(from.Block.Number)
-							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
+							p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertAllLPState(tx, from.Block.Number)
+							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
 								"settlement_price": 0,
 								"total_payout":     0,
 								"state":            "Running",
@@ -276,5 +279,6 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 			}
 		}
 	}
+	tx.Commit()
 	return nil
 }
