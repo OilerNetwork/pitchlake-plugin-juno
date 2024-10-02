@@ -54,9 +54,11 @@ type OptionBuyer struct {
 	Address    string `gorm:"column:address;not null"`
 	//Maybe this is not required and can be directly fetched as a view/index on the bids table
 	//Bids       string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
-	RoundID            BigInt `gorm:"column:round_id;not null"`
-	TokenizableOptions BigInt `gorm:"column:tokenizable_options;"`
-	RefundableBalance  BigInt `gorm:"column:refundable_balance;"`
+	RoundID           BigInt `gorm:"column:round_id;not null"`
+	MintableOptions   BigInt `gorm:"column:mintable_options;"`
+	HasMinted         bool   `gorm:"column:has_minted;"`
+	RefundableBalance BigInt `gorm:"column:refundable_balance;"`
+	HasRefunded       bool   `gorm:"column:has_refunded;"`
 }
 
 type OptionRound struct {

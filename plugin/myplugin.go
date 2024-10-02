@@ -10,6 +10,7 @@ import (
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
 	junoplugin "github.com/NethermindEth/juno/plugin"
+	"gorm.io/gorm"
 )
 
 // Todo: push this stuff to a config file / cmd line
@@ -133,6 +134,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							bid.RoundID = p.prevStateOptionRound.RoundID
 							p.db.CreateBid(tx, &bid)
 						case "BidUpdated":
+							tx.Model(models.Bid{}).Where("bid_id = ?", event.Data[0].String()).Update("amount", gorm.Expr("amount + ?", event.Data[1]))
 
 						case "OptionsMinted":
 							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
@@ -141,7 +143,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							}
 
 							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
-								"tokenizable_options": 0,
+								"has_minted": true,
 							})
 						case "UnusedBidsRefunded":
 							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
@@ -150,7 +152,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							}
 
 							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
-								"refundable_balance": 0,
+								"has_refunded": true,
 							})
 						case "OptionsExercised":
 							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
@@ -159,7 +161,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							}
 
 							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
-								"tokenizable_options": 0,
+								"has_minted": true,
 							})
 						case "Transfer":
 						}
@@ -243,8 +245,15 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							id := event.Data[1].String()
 							p.db.DeleteBid(id, p.prevStateOptionRound.RoundID)
 						case "BidUpdated":
-
+							tx.Model(models.Bid{}).Where("bid_id = ?", event.Data[0].String()).Update("amount", gorm.Expr("amount - ?", event.Data[1]))
 						case "OptionsMinted":
+							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
+							if err != nil {
+								return err
+							}
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+								"has_minted": false,
+							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
 							// if err != nil {
 							// 	return err
@@ -254,6 +263,13 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							// 	"tokenizable_options": 0,
 							// })
 						case "UnusedBidsRefunded":
+							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
+							if err != nil {
+								return err
+							}
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+								"has_refunded": false,
+							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
 							// if err != nil {
 							// 	return err
@@ -263,6 +279,13 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							// 	"refundable_balance": 0,
 							// })
 						case "OptionsExercised":
+							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
+							if err != nil {
+								return err
+							}
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+								"has_minted": false,
+							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
 							// if err != nil {
 							// 	return err
