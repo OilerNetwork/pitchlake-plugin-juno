@@ -102,8 +102,8 @@ func (db *DB) UpdateBiddersAuctionEnd(tx *gorm.DB, clearingPrice, clearingOption
 		if clearingNonce == bid.TreeNonce {
 
 			err := db.UpdateOptionBuyerFields(tx, bid.Address, roundID, map[string]interface{}{
-				"refundable_balance":  gorm.Expr("refundable_balance+?", (bid.Amount-clearingOptionsSold)*clearingPrice),
-				"tokenizable_options": gorm.Expr("tokenizable_options+?", clearingOptionsSold),
+				"refundable_amount": gorm.Expr("refundable_amount+?", (bid.Amount-clearingOptionsSold)*clearingPrice),
+				"mintable_options":  gorm.Expr("mintable_options+?", clearingOptionsSold),
 			})
 			if err != nil {
 				return err
@@ -111,7 +111,7 @@ func (db *DB) UpdateBiddersAuctionEnd(tx *gorm.DB, clearingPrice, clearingOption
 			return nil
 		} else {
 			err := db.UpdateOptionBuyerFields(tx, bid.Address, roundID, map[string]interface{}{
-				"tokenizable_options": gorm.Expr("tokenizable_options+?", bid.Amount),
+				"mintable_options": gorm.Expr("mintable_options+?", bid.Amount),
 			})
 			if err != nil {
 				return err
@@ -126,7 +126,7 @@ func (db *DB) UpdateBiddersAuctionEnd(tx *gorm.DB, clearingPrice, clearingOption
 	}
 	for _, bid := range bidsBelow {
 		err := db.UpdateOptionBuyerFields(tx, bid.Address, roundID, map[string]interface{}{
-			"refundable_balance": gorm.Expr("tokenizable_options+?", bid.Amount),
+			"refundable_amount": gorm.Expr("mintable_options+?", bid.Amount),
 		})
 		if err != nil {
 			return err
