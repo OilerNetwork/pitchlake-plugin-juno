@@ -230,7 +230,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							})
 							p.db.UpdateAllOptionBuyerFields(tx, p.prevStateOptionRound.RoundID, map[string]interface{}{
 								"tokenizable_options": 0,
-								"refundable_balance":  0,
+								"refundable_amount":   0,
 							})
 
 						case "OptionRoundSettled":
@@ -276,7 +276,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							// }
 
 							// p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
-							// 	"refundable_balance": 0,
+							// 	"refundable_amount": 0,
 							// })
 						case "OptionsExercised":
 							optionRound, err := p.db.GetOptionRoundByAddress(tx, roundAddress.String())
