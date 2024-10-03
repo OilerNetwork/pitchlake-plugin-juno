@@ -10,11 +10,12 @@ import (
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
 	junoplugin "github.com/NethermindEth/juno/plugin"
+	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 )
 
 // Todo: push this stuff to a config file / cmd line
-var dsn = "INSERT_DETAILS_HERE"
+var envFile, _ = godotenv.Read(".env")
 var vaultAddress = new(felt.Felt).SetUint64(1)
 var previousState = int64(1)
 
@@ -36,7 +37,8 @@ var JunoPluginInstance = pitchlakePlugin{}
 var _ junoplugin.JunoPlugin = (*pitchlakePlugin)(nil)
 
 func (p *pitchlakePlugin) Init() error {
-	db, err := db.Init(dsn)
+	dbUrl := envFile["DB_URL"]
+	db, err := db.Init(dbUrl)
 	if err != nil {
 		log.Fatalf("Failed to initialise db: %v", err)
 		return err
