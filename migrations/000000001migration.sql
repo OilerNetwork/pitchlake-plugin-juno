@@ -65,6 +65,9 @@
 
 
 
+-- Table: public.Liquidity_Providers
+
+-- DROP TABLE IF EXISTS public."Liquidity_Providers";
 
 CREATE TABLE IF NOT EXISTS public."Liquidity_Providers"
 (
@@ -72,14 +75,15 @@ CREATE TABLE IF NOT EXISTS public."Liquidity_Providers"
     stashed_balance numeric(78,0),
     locked_balance numeric(78,0),
     unlocked_balance numeric(78,0),
-    latest_block numeric(78,0)
+    latest_block numeric(78,0),
+    CONSTRAINT "Liquidity_Providers_pkey" PRIMARY KEY (address)
 )
 
 TABLESPACE pg_default;
 
 ALTER TABLE IF EXISTS public."Liquidity_Providers"
     OWNER to postgres;
-=
+
 
 -- FUNCTION: public.notify_lp_update()
 
@@ -127,22 +131,22 @@ CREATE OR REPLACE TRIGGER lp_update
 CREATE TABLE IF NOT EXISTS public."Option_Rounds"
 (
     address character varying COLLATE pg_catalog."default" NOT NULL,
-    available_options bigint,
-    clearing_price bigint,
-    settlement_price bigint,
-    strike_price bigint,
-    sold_options bigint,
-    state character varying COLLATE pg_catalog."default",
-    premiums bigint,
-    queued_liquidity character varying COLLATE pg_catalog."default",
-    payout_per_option character varying COLLATE pg_catalog."default",
-    start_date character varying COLLATE pg_catalog."default",
-    end_date character varying COLLATE pg_catalog."default",
-    settlement_date character varying COLLATE pg_catalog."default",
-    vault_address character varying COLLATE pg_catalog."default",
+    available_options numeric(78,0) DEFAULT 0,
+    clearing_price numeric(78,0),
+    settlement_price numeric(78,0),
+    strike_price numeric(78,0),
+    sold_options numeric(78,0),
+    state character varying(10) COLLATE pg_catalog."default",
+    premiums numeric(78,0),
+    vault_address character varying(67) COLLATE pg_catalog."default",
     round_id numeric(78,0),
     cap_level numeric(78,0),
     starting_liquidity numeric(78,0),
+    queued_liquidity numeric(78,0),
+    payout_per_option numeric(78,0),
+    start_date numeric(78,0),
+    end_date numeric(78,0),
+    settlement_date numeric(78,0),
     CONSTRAINT "Option_Rounds_pkey" PRIMARY KEY (address)
 )
 
@@ -197,10 +201,21 @@ CREATE OR REPLACE TRIGGER or_update
 
 CREATE TABLE IF NOT EXISTS public."Queued_Liquidity"
 (
-    address character varying COLLATE pg_catalog."default" NOT NULL,
-    round_id numeric(78,0) NOT NULL,
+    address character varying(67) COLLATE pg_catalog."default" NOT NULL,
     starting_amount numeric(78,0) NOT NULL,
-    queued_amount numeric(78,0) NOT NULL
+    queued_amount numeric(78,0) NOT NULL,
+    round_address character varying(67) COLLATE pg_catalog."default" NOT NULL,
+    CONSTRAINT lp_round_address PRIMARY KEY (address, round_address),
+    CONSTRAINT lp_address FOREIGN KEY (address)
+        REFERENCES public."Liquidity_Providers" (address) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID,
+    CONSTRAINT round_address FOREIGN KEY (round_address)
+        REFERENCES public."Option_Rounds" (address) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+        NOT VALID
 )
 
 TABLESPACE pg_default;
@@ -217,9 +232,9 @@ CREATE TABLE IF NOT EXISTS public."VaultStates"
 (
     unlocked_balance numeric(78,0),
     locked_balance numeric(78,0),
-    current_round_address character varying COLLATE pg_catalog."default",
+    current_round_address character varying(67) COLLATE pg_catalog."default",
     stashed_balance numeric(78,0),
-    address character varying COLLATE pg_catalog."default" NOT NULL,
+    address character varying(67) COLLATE pg_catalog."default" NOT NULL,
     latest_block numeric(78,0),
     current_round numeric(78,0),
     CONSTRAINT "VaultState_pkey" PRIMARY KEY (address)
@@ -269,17 +284,19 @@ CREATE OR REPLACE TRIGGER vault_update
     EXECUTE FUNCTION public.notify_vault_update();
 
 
-
-    -- Table: public.Option_Buyers
+-- Table: public.Option_Buyers
 
 -- DROP TABLE IF EXISTS public."Option_Buyers";
 
 CREATE TABLE IF NOT EXISTS public."Option_Buyers"
 (
     address character varying COLLATE pg_catalog."default" NOT NULL,
-    bids character varying[] COLLATE pg_catalog."default" NOT NULL,
-    round_id bigint NOT NULL,
-    options_won bigint NOT NULL
+    round_id numeric(78,0) NOT NULL,
+    has_minted boolean NOT NULL DEFAULT false,
+    has_refunded boolean NOT NULL DEFAULT false,
+    mintable_options numeric(78,0),
+    refundable_options numeric(78,0),
+    CONSTRAINT buyer_round PRIMARY KEY (address, round_id)
 )
 
 TABLESPACE pg_default;
@@ -324,7 +341,28 @@ CREATE OR REPLACE TRIGGER ob_update
     AFTER UPDATE 
     ON public."Option_Buyers"
     FOR EACH ROW
-    EXECUTE FUNCTION public.notify_or_update();
+    EXECUTE FUNCTION public.notify_ob_update();
 
 
     
+
+
+-- Table: public.Bids
+
+-- DROP TABLE IF EXISTS public."Bids";
+
+CREATE TABLE IF NOT EXISTS public."Bids"
+(
+    buyer_address character varying(67) COLLATE pg_catalog."default",
+    round_address character varying(67) COLLATE pg_catalog."default" NOT NULL,
+    bid_id character varying(67) COLLATE pg_catalog."default" NOT NULL,
+    tree_nonce numeric(78,0),
+    amount numeric(78,0),
+    price numeric(78,0),
+    CONSTRAINT round_address_bid_id PRIMARY KEY (round_address, bid_id)
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."Bids"
+    OWNER to postgres;
