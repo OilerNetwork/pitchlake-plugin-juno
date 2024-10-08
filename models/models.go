@@ -90,7 +90,7 @@ type VaultState struct {
 	LockedBalance       BigInt `gorm:"column:locked_balance;not null"`
 	StashedBalance      BigInt `gorm:"column:stashed_balance;not null"`
 	Address             string `gorm:"column:address;not null"`
-	LastBlock           BigInt `gorm:"column:last_block;"`
+	LatestBlock         BigInt `gorm:"column:latest_block;"`
 }
 
 type LiquidityProviderState struct {
@@ -100,13 +100,13 @@ type LiquidityProviderState struct {
 	LockedBalance   BigInt `gorm:"column:locked_balance;not null"`
 	StashedBalance  BigInt `gorm:"column:stashed_balance;"`
 	QueuedBalance   BigInt `gorm:"column:queued_balance;"`
-	LastBlock       BigInt `gorm:"column:last_block;"`
+	LatestBlock     BigInt `gorm:"column:latest_block;"`
 }
 
 type QueuedLiquidity struct {
 	gorm.Model
 	Address        string `gorm:"column:address;not null"`
-	RoundID        BigInt `gorm:"column:round_id;not null"`
+	RoundAddress   BigInt `gorm:"column:round_address;not null"`
 	StartingAmount BigInt `gorm:"column:starting_amount;not null"`
 	QueuedAmount   BigInt `gorm:"column:amount;not null"`
 }
