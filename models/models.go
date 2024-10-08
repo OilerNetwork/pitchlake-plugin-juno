@@ -112,12 +112,12 @@ type QueuedLiquidity struct {
 }
 type Bid struct {
 	gorm.Model
-	Address   string `gorm:"column:address;not null"`
-	RoundID   BigInt `gorm:"column:round_id;not null"`
-	BidID     string `gorm:"column:bid_id;not null"`
-	TreeNonce BigInt `gorm:"column:tree_nonce;not null"`
-	Amount    BigInt `gorm:"column:amount;not null"`
-	Price     BigInt `gorm:"column:price;not null"`
+	BuyerAddress string `gorm:"column:buyer_address;not null"`
+	RoundAddress string `gorm:"column:round_address;not null"`
+	BidID        string `gorm:"column:bid_id;not null"`
+	TreeNonce    BigInt `gorm:"column:tree_nonce;not null"`
+	Amount       BigInt `gorm:"column:amount;not null"`
+	Price        BigInt `gorm:"column:price;not null"`
 }
 
 type Position struct {
