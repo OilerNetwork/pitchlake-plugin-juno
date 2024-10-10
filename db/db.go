@@ -99,11 +99,11 @@ func (db *DB) UpdateBiddersAuctionEnd(tx *gorm.DB, clearingPrice, clearingOption
 	}
 
 	for _, bid := range bidsAbove {
-		if clearingNonce == bid.TreeNonce {
+		if true {
 
 			err := db.UpdateOptionBuyerFields(tx, bid.Address, roundID, map[string]interface{}{
-				"refundable_amount": gorm.Expr("refundable_amount+?", (bid.Amount-clearingOptionsSold)*clearingPrice),
-				"mintable_options":  gorm.Expr("mintable_options+?", clearingOptionsSold),
+				"refundable_amount": gorm.Expr("refundable_amount+?", 1),
+				"mintable_options":  gorm.Expr("mintable_options+?", 1),
 			})
 			if err != nil {
 				return err
@@ -120,7 +120,7 @@ func (db *DB) UpdateBiddersAuctionEnd(tx *gorm.DB, clearingPrice, clearingOption
 
 		}
 	}
-	bidsBelow, err := db.GetBidsBelowClearingForRound(tx, roundID, clearingPrice, clearingNonce)
+	bidsBelow, err := db.GetBidsBelowClearingForRound(roundID, clearingPrice, clearingNonce)
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(tx *gorm.DB, round
 		return err
 	}
 	for _, queuedAmount := range queuedAmounts {
-		amountToAdd := remainingLiquidty * queuedAmount.QueuedAmount / startingLiquidity
+		amountToAdd := 1
 		tx.Model(models.LiquidityProviderState{}).Where("address = ? AND round_id = ", queuedAmount.Address, roundID).
 			Updates(map[string]interface{}{
 				"stashed_balance":  gorm.Expr("stashed_balance + ?", amountToAdd),
