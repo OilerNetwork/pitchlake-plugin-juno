@@ -2,14 +2,13 @@ module junoplugin
 
 go 1.23.1
 
-
 require (
 	github.com/NethermindEth/juno v0.12.2
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.12
 )
 
-replace github.com/NethermindEth/juno => ./juno
+replace github.com/NethermindEth/juno => ../juno/juno
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect

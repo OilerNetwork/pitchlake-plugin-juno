@@ -3,7 +3,7 @@ package main
 import (
 	"junoplugin/adaptors"
 	"junoplugin/db"
-	// "junoplugin/events"
+	"junoplugin/events"
 	"junoplugin/models"
 	"log"
 	"math/big"
@@ -12,7 +12,7 @@ import (
 	"github.com/NethermindEth/juno/core/felt"
 	junoplugin "github.com/NethermindEth/juno/plugin"
 	"github.com/joho/godotenv"
-	// "gorm.io/gorm"
+	"gorm.io/gorm"
 )
 
 // Todo: push this stuff to a config file / cmd line
@@ -57,32 +57,34 @@ func (p *pitchlakePlugin) Shutdown() error {
 }
 
 func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpdate, newClasses map[felt.Felt]core.Class) error {
+
+	tx := p.db.Conn.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
-	// tx := p.db.Conn.Begin()
-	// for _, receipt := range block.Receipts {
-	// 	for _, event := range receipt.Events {
-	// 		if event.From.Equal(p.vaultAddress) {
-	// 			eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
-	// 			if err != nil {
-	// 				log.Fatalf("Failed to decode event: %v", err)
-	// 				return err
-	// 			}
-	// 			switch eventName {
-	// 			case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
-	// 				var lpLocked, lpUnlocked, vaultLocked, vaultUnlocked uint64
-	// 				event.Data[0].SetUint64(lpLocked)
-	// 				event.Data[1].SetUint64(lpUnlocked)
-	// 				event.Data[2].SetUint64(vaultLocked)
-	// 				event.Data[3].SetUint64(vaultUnlocked)
+	for _, receipt := range block.Receipts {
+		for _, event := range receipt.Events {
+			if event.From.Equal(p.vaultAddress) {
+				eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
+				if err != nil {
+					log.Fatalf("Failed to decode event: %v", err)
+					return err
+				}
+				switch eventName {
+				case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
+					var lpLocked, lpUnlocked, vaultLocked, vaultUnlocked uint64
+					event.Data[0].SetUint64(lpLocked)
+					event.Data[1].SetUint64(lpUnlocked)
+					event.Data[2].SetUint64(vaultLocked)
+					event.Data[3].SetUint64(vaultUnlocked)
 
-	// 				//Map the other parameters as well
-	// 				var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
-	// 				// p.db.UpsertLiquidityProviderState(tx, newLPState, block.Number)
-	// 				// p.db.UpdateVaultFields(tx, map[string]interface{}{"unlocked_balance": vaultUnlocked, "locked_balance": vaultLocked, "latest_block": block.Number})
-	// 			case "OptionRoundDeployed":
-	// 			}
+					//Map the other parameters as well
+					var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
+					p.db.UpsertLiquidityProviderState(tx, newLPState, block.Number)
+					p.db.UpdateVaultFields(tx, map[string]interface{}{"unlocked_balance": vaultUnlocked, "locked_balance": vaultLocked, "latest_block": block.Number})
+				case "OptionRoundDeployed":
+				}
 
-	// 		} else {
+			} else {
+
 				for _, roundAddress := range p.roundAddresses {
 					if event.From.Equal(roundAddress) {
 						eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
@@ -165,43 +167,43 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 						case "Transfer":
 						}
 
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// tx.Commit()
+					}
+				}
+			}
+		}
+	}
+	tx.Commit()
 	return nil
 }
 
 func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, reverseStateDiff *core.StateDiff) error {
 	p.log.Println("ExamplePlugin NewBlock called")
-	// tx := p.db.Conn.Begin()
-	// length := len(from.Block.Receipts)
-	// for i := length - 1; i >= 0; i-- {
-	// 	receipt := from.Block.Receipts[i]
-	// 	for _, event := range receipt.Events {
-	// 		if event.From.Equal(p.vaultAddress) {
-	// 			eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
-	// 			if err != nil {
-	// 				log.Fatalf("Failed to decode event: %v", err)
-	// 				return err
-	// 			}
-	// 			switch eventName {
-	// 			case "Deposit", "Withdraw",
-	// 				"QueuedLiquidityCollected": //Add withdraw queue
+	tx := p.db.Conn.Begin()
+	length := len(from.Block.Receipts)
+	for i := length - 1; i >= 0; i-- {
+		receipt := from.Block.Receipts[i]
+		for _, event := range receipt.Events {
+			if event.From.Equal(p.vaultAddress) {
+				eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
+				if err != nil {
+					log.Fatalf("Failed to decode event: %v", err)
+					return err
+				}
+				switch eventName {
+				case "Deposit", "Withdraw",
+					"QueuedLiquidityCollected": //Add withdraw queue
 
-	// 				//Map the other parameters as well
-	// 				// var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
-	// 				// var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
-	// 				// p.db.UpsertLiquidityProviderState(newLPState)
-	// 				// p.db.UpdateVaultState(newVaultState)
-	// 				p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
-	// 				p.db.RevertLPState(tx, event.Keys[0].String(), from.Block.Number)
-	// 			case "OptionRoundDeployed":
-	// 			}
+					//Map the other parameters as well
+					// var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String()})
+					// var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
+					// p.db.UpsertLiquidityProviderState(newLPState)
+					// p.db.UpdateVaultState(newVaultState)
+					p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+					p.db.RevertLPState(tx, event.Keys[0].String(), from.Block.Number)
+				case "OptionRoundDeployed":
+				}
 
-	// 		} else {
+			} else {
 
 				for _, roundAddress := range p.roundAddresses {
 					if event.From.Equal(roundAddress) {
@@ -279,18 +281,18 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							// 	return err
 							// }
 
-	// 						// p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
-	// 						// 	"tokenizable_options": 0,
-	// 						// })
-	// 					case "Transfer":
-	// 					}
+							// p.db.UpdateOptionBuyerFields(event.Keys[0].String(), optionRound.RoundID, map[string]interface{}{
+							// 	"tokenizable_options": 0,
+							// })
+						case "Transfer":
+						}
 
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// tx.Commit()
+					}
+				}
+			}
+		}
+	}
+	tx.Commit()
 	return nil
 }
 
