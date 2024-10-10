@@ -1,34 +1,30 @@
 package main
 
 import (
-	"junoplugin/adaptors"
 	"junoplugin/db"
 	"junoplugin/events"
 	"junoplugin/models"
 	"log"
 	"math/big"
+	"os"
 
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
 	junoplugin "github.com/NethermindEth/juno/plugin"
-	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 )
 
 // Todo: push this stuff to a config file / cmd line
-var envFile, _ = godotenv.Read(".env")
+
 var vaultAddress = new(felt.Felt).SetUint64(1)
-var previousState = int64(1)
 
 //go:generate go build -buildmode=plugin -o ../../build/plugin.so ./example.go
 type pitchlakePlugin struct {
 	vaultAddress         *felt.Felt
 	roundAddresses       []*felt.Felt
-	prevStateVault       *models.VaultState
 	prevStateOptionRound *models.OptionRound
 	db                   *db.DB
 	log                  *log.Logger
-	adaptors             *adaptors.PostgresAdapter
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -38,7 +34,7 @@ var JunoPluginInstance = pitchlakePlugin{}
 var _ junoplugin.JunoPlugin = (*pitchlakePlugin)(nil)
 
 func (p *pitchlakePlugin) Init() error {
-	dbUrl := envFile["DB_URL"]
+	dbUrl := os.Getenv("DB_URL")
 	db, err := db.Init(dbUrl)
 	if err != nil {
 		log.Fatalf("Failed to initialise db: %v", err)

@@ -15,6 +15,7 @@ type DB struct {
 }
 
 func Init(dsn string) (*DB, error) {
+	log.Printf("connecting to %s", dsn)
 	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
 	if err != nil {
 		log.Fatalf("Failed to connect to the database: %v", err)
@@ -159,7 +160,6 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(tx *gorm.DB, round
 		return err
 	}
 	for _, queuedAmount := range queuedAmounts {
-
 
 		amountToAdd := &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidty.Int, queuedAmount.QueuedAmount.Int), startingLiquidity.Int)}
 		tx.Model(models.LiquidityProviderState{}).Where("address = ? AND round_address = ", queuedAmount.Address, roundAddress).

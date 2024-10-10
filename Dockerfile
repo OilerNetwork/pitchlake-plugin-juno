@@ -13,6 +13,7 @@ WORKDIR /plugin
 # Copy source code
 COPY . .
 
+
 # Build the project
 RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
 
@@ -35,6 +36,7 @@ WORKDIR /app
 # Copy the Juno binary and the plugin from the build stage
 COPY --from=build /plugin/juno/build/juno ./build/
 COPY --from=build /plugin/myplugin.so ./
+COPY .env ./
 
 # Run Juno with the plugin
 CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so"]
