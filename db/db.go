@@ -100,8 +100,7 @@ func (db *DB) UpdateBiddersAuctionEnd(tx *gorm.DB, roundAddress string, clearing
 	}
 
 	for _, bid := range bidsAbove {
-		if clearingNonce == bid.TreeNonce {
-
+		if true {
 			refundableAmount := &models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Amount.Int, clearingOptionsSold.Int), clearingPrice.Int)}
 			err := db.UpdateOptionBuyerFields(tx, bid.BuyerAddress, roundAddress, map[string]interface{}{
 				"refundable_amount": gorm.Expr("refundable_amount+?", refundableAmount),
@@ -160,6 +159,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(tx *gorm.DB, round
 		return err
 	}
 	for _, queuedAmount := range queuedAmounts {
+
 
 		amountToAdd := &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidty.Int, queuedAmount.QueuedAmount.Int), startingLiquidity.Int)}
 		tx.Model(models.LiquidityProviderState{}).Where("address = ? AND round_address = ", queuedAmount.Address, roundAddress).

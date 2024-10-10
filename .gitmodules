@@ -1,0 +1,4 @@
+[submodule "juno"]
+	path = juno
+	url = https://github.com/NethermindEth/juno
+	branch = rianhughes/plugin2
