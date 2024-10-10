@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: pitchlake_db
+      POSTGRES_USER: pitchlake_user
+      POSTGRES_PASSWORD: pitchlake_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pitchlake_user -d pitchlake_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  juno_plugin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DB_URL: postgres://pitchlake_user:pitchlake_password@db:5432/pitchlake_db
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"  # Adjust this port if needed
+
+volumes:
+  postgres_data:
