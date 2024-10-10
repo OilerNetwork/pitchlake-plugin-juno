@@ -16,3 +16,6 @@ Go plugings require that both the application (Juno in this case) and the plugin
 3. Run `make build` from the root of this repository. This should generate an `.so` file, which you will need to pass into Juno.
 4. Pass the `.so` file generated in step 2 above, into Juno. For example, `./build/juno --plugin-path ./path/to/myplugin.so`
 
+# Running with Docker
+
+Run `docker compose up --build` from the root of this repository.
