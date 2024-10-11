@@ -14,9 +14,13 @@ type DB struct {
 	Conn *gorm.DB
 }
 
-func Init(dsn string) (*DB, error) {
-	log.Printf("connecting to %s", dsn)
-	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
+func Init(dbURL string) (*DB, error) {
+	if dbURL == "" {
+		log.Fatal("DB_URL is empty")
+	}
+
+	log.Printf("connecting to %s", dbURL)
+	conn, err := gorm.Open(postgres.Open(dbURL), &gorm.Config{SkipDefaultTransaction: true})
 	if err != nil {
 		log.Fatalf("Failed to connect to the database: %v", err)
 		return nil, err
