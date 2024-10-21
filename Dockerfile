@@ -36,7 +36,8 @@ WORKDIR /app
 # Copy the Juno binary and the plugin from the build stage
 COPY --from=build /plugin/juno/build/juno ./build/
 COPY --from=build /plugin/myplugin.so ./
+COPY --from=build /plugin/juno/genesis ./genesis
 COPY .env ./
 
 # Run Juno with the plugin
-CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so"]
+CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --db-path=../seq-db --log-level=debug --seq-enable --seq-block-time=1 --network sequencer --seq-genesis-file genesis/genesis_prefund_accounts.json --rpc-call-max-steps=4123000"]
