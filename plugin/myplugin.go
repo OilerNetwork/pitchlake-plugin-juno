@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"junoplugin/db"
 	"junoplugin/events"
 	"junoplugin/models"
@@ -11,17 +12,20 @@ import (
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
 	junoplugin "github.com/NethermindEth/juno/plugin"
+	"golang.org/x/crypto/sha3"
 	"gorm.io/gorm"
 )
 
 // Todo: push this stuff to a config file / cmd line
 
-var vaultAddress = new(felt.Felt).SetUint64(1)
+const UDC_ADDDRESS = "0x41a78e741e5af2fec34b695679bc6891742439f7afb8484ecd7766661ad02bf"
 
 //go:generate go build -buildmode=plugin -o ../../build/plugin.so ./example.go
 type pitchlakePlugin struct {
-	vaultAddress         *felt.Felt
-	roundAddresses       []*felt.Felt
+	vaultHash            string
+	vaultAddress         string
+	vaultAddresses       []string
+	roundAddresses       []string
 	prevStateOptionRound *models.OptionRound
 	db                   *db.DB
 	log                  *log.Logger
@@ -41,7 +45,7 @@ func (p *pitchlakePlugin) Init() error {
 		return err
 	}
 	p.db = db
-	p.vaultAddress = vaultAddress
+	p.vaultHash = "0x10ee597640526200f1057301125e691acb78c0af72ba2bc6b6e9cde53acd36c"
 	p.log = log.Default()
 	return nil
 }
@@ -52,13 +56,49 @@ func (p *pitchlakePlugin) Shutdown() error {
 	return nil
 }
 
+func keccak256(eventName string) string {
+	hasher := sha3.NewLegacyKeccak256()
+
+	// Write the event name as bytes to the hasher
+	hasher.Write([]byte(eventName))
+
+	// Compute the full 256-bit hash
+	hashBytes := hasher.Sum(nil)
+
+	// Convert the hash to a big integer
+	hashInt := new(big.Int).SetBytes(hashBytes)
+
+	// Apply a 250-bit mask to fit StarkNet's felt requirements
+	mask := new(big.Int).Lsh(big.NewInt(1), 250)
+	mask.Sub(mask, big.NewInt(1))
+	hashInt.And(hashInt, mask)
+
+	// Convert the masked hash to a hexadecimal string with "0x" prefix
+	return "0x" + hashInt.Text(16)
+}
+
 func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpdate, newClasses map[felt.Felt]core.Class) error {
 
 	tx := p.db.Conn.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {
+
 		for _, event := range receipt.Events {
-			if event.From.Equal(p.vaultAddress) {
+			fromAddress := event.From.String()
+			log.Printf("EVENT.FROM %S", event.From.String())
+			if fromAddress == UDC_ADDDRESS {
+				eventHash := keccak256("ContractDeployed")
+				address := FeltToHexString(event.Data[0].Bytes())
+				classHash := FeltToHexString(event.Data[3].Bytes())
+
+				if eventHash == event.Keys[0].String() {
+
+					if classHash == p.vaultHash {
+						p.vaultAddress = address
+
+					}
+				}
+			} else if fromAddress == p.vaultAddress {
 				eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
 				if err != nil {
 					log.Fatalf("Failed to decode event: %v", err)
@@ -82,7 +122,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 			} else {
 
 				for _, roundAddress := range p.roundAddresses {
-					if event.From.Equal(roundAddress) {
+					if fromAddress == roundAddress {
 						eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
 						if err != nil {
 							log.Fatalf("Failed to decode event: %v", err)
@@ -90,7 +130,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 						}
 						switch eventName {
 						case "AuctionStarted":
-							p.db.UpdateOptionRoundFields(tx, roundAddress.String(), map[string]interface{}{
+							p.db.UpdateOptionRoundFields(tx, roundAddress, map[string]interface{}{
 								"available_options":  event.Data[0],
 								"starting_liquidity": event.Data[1],
 								"state":              "Auctioning",
@@ -116,14 +156,14 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							)}
 							p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(tx, p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums, block.Number)
 							p.db.UpdateVaultBalancesAuctionEnd(tx, unsoldLiquidity, premiums, block.Number)
-							p.db.UpdateBiddersAuctionEnd(tx, roundAddress.String(), clearingPrice, optionsSold, clearingNonce)
-							p.db.UpdateOptionRoundAuctionEnd(tx, roundAddress.String(), clearingPrice, optionsSold)
+							p.db.UpdateBiddersAuctionEnd(tx, roundAddress, clearingPrice, optionsSold, clearingNonce)
+							p.db.UpdateOptionRoundAuctionEnd(tx, roundAddress, clearingPrice, optionsSold)
 						case "OptionRoundSettled":
 							var totalPayout, settlementPrice uint64
 							event.Data[0].SetUint64(totalPayout)
 							event.Data[2].SetUint64(settlementPrice)
 							p.db.UpdateVaultBalancesOptionSettle(tx, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, block.Number)
-							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(tx, roundAddress.String(), p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, models.BigInt{Int: new(big.Int).SetUint64(totalPayout)}, models.BigInt{Int: new(big.Int).SetUint64(block.Number)})
+							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(tx, roundAddress, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, models.BigInt{Int: new(big.Int).SetUint64(totalPayout)}, models.BigInt{Int: new(big.Int).SetUint64(block.Number)})
 							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
 								"settlement_price": settlementPrice,
 								"total_payout":     totalPayout,
@@ -137,7 +177,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 							var bid models.Bid
 							bid.BuyerAddress = event.Keys[0].String()
 							bid.BidID = event.Data[1].String()
-							bid.RoundAddress = roundAddress.String()
+							bid.RoundAddress = roundAddress
 							bid.Amount = bidAmount
 							bid.Price = bidPrice
 							bid.TreeNonce = bidNonce
@@ -147,17 +187,17 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 
 						case "OptionsMinted":
 
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress.String(), map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_minted": true,
 							})
 						case "UnusedBidsRefunded":
 
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress.String(), map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_refunded": true,
 							})
 						case "OptionsExercised":
 
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress.String(), map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_minted": true,
 							})
 						case "Transfer":
@@ -179,7 +219,9 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 	for i := length - 1; i >= 0; i-- {
 		receipt := from.Block.Receipts[i]
 		for _, event := range receipt.Events {
-			if event.From.Equal(p.vaultAddress) {
+
+			fromAddress := event.From.String()
+			if fromAddress == p.vaultAddress {
 				eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
 				if err != nil {
 					log.Fatalf("Failed to decode event: %v", err)
@@ -194,7 +236,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 					// var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
 					// p.db.UpsertLiquidityProviderState(newLPState)
 					// p.db.UpdateVaultState(newVaultState)
-					p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+					p.db.RevertVaultState(tx, p.vaultAddress, from.Block.Number)
 					p.db.RevertLPState(tx, event.Keys[0].String(), from.Block.Number)
 				case "OptionRoundDeployed":
 				}
@@ -202,7 +244,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 			} else {
 
 				for _, roundAddress := range p.roundAddresses {
-					if event.From.Equal(roundAddress) {
+					if fromAddress == roundAddress {
 						eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
 						if err != nil {
 							log.Fatalf("Failed to decode event: %v", err)
@@ -210,7 +252,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 						}
 						switch eventName {
 						case "AuctionStarted":
-							p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertVaultState(tx, p.vaultAddress, from.Block.Number)
 							p.db.RevertAllLPState(tx, from.Block.Number)
 							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
 								"available_options":  0,
@@ -218,20 +260,20 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 								"state":              "Open",
 							})
 						case "AuctionEnded":
-							p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertVaultState(tx, p.vaultAddress, from.Block.Number)
 							p.db.RevertAllLPState(tx, from.Block.Number)
 							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
 								"clearing_price": nil,
 								"options_sold":   nil,
 								"state":          "Auctioning",
 							})
-							p.db.UpdateAllOptionBuyerFields(tx, roundAddress.String(), map[string]interface{}{
+							p.db.UpdateAllOptionBuyerFields(tx, roundAddress, map[string]interface{}{
 								"tokenizable_options": 0,
 								"refundable_amount":   0,
 							})
 
 						case "OptionRoundSettled":
-							p.db.RevertVaultState(tx, p.vaultAddress.String(), from.Block.Number)
+							p.db.RevertVaultState(tx, p.vaultAddress, from.Block.Number)
 							p.db.RevertAllLPState(tx, from.Block.Number)
 							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
 								"settlement_price": 0,
@@ -240,11 +282,11 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							})
 						case "BidAccepted":
 							id := event.Data[1].String()
-							p.db.DeleteBid(tx, id, roundAddress.String())
+							p.db.DeleteBid(tx, id, roundAddress)
 						case "BidUpdated":
 							tx.Model(models.Bid{}).Where("bid_id = ?", event.Data[0].String()).Update("amount", gorm.Expr("amount - ?", event.Data[1]))
 						case "OptionsMinted":
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress.String(), map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_minted": false,
 							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
@@ -256,7 +298,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							// 	"tokenizable_options": 0,
 							// })
 						case "UnusedBidsRefunded":
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress.String(), map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_refunded": false,
 							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
@@ -269,7 +311,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							// })
 						case "OptionsExercised":
 
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress.String(), map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_minted": false,
 							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
@@ -305,4 +347,32 @@ func CombineFeltToBigInt(highFelt, lowFelt [32]byte) models.BigInt {
 	combinedInt := models.BigInt{Int: new(big.Int).SetBytes(combinedBytes)}
 
 	return combinedInt
+}
+
+func FeltToHexString(felt [32]byte) string {
+
+	combinedInt := models.BigInt{Int: new(big.Int).SetBytes(felt[:])}
+	// Assuming `f.Value` holds the *big.Int representation of the felt
+	return "0x" + combinedInt.Text(16)
+}
+
+func BigIntToHexString(f big.Int) string {
+
+	// Assuming `f.Value` holds the *big.Int representation of the felt
+	return "0x" + f.Text(16)
+}
+
+func DecimalStringToHexString(decimalString string) (string, error) {
+	// Create a new big.Int and set its value from the decimal string
+	num := new(big.Int)
+	_, success := num.SetString(decimalString, 10)
+	if !success {
+		return "", fmt.Errorf("invalid decimal string")
+	}
+
+	// Convert the big.Int to a hexadecimal string
+	hexString := num.Text(16)
+
+	// Add "0x" prefix for clarity
+	return "0x" + hexString, nil
 }
