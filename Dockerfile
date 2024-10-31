@@ -13,7 +13,7 @@ COPY . .
 
 RUN git clone https://github.com/NethermindEth/juno.git && \
     cd juno && \
-    git checkout rianhughes/plugin-sequencer
+    git checkout pitchlake/plugin-sequencer
 
 RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
 
@@ -39,4 +39,4 @@ COPY --from=build /plugin/myplugin.so ./
 COPY --from=build /plugin/juno/genesis ./genesis
 
 # Run Juno with the plugin
-CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --db-path=../seq-db --log-level=debug --seq-enable --seq-block-time=1 --network sequencer --seq-genesis-file genesis/genesis_prefund_accounts.json --rpc-call-max-steps=4123000"]
+CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --db-path=../seq-db --log-level=debug --seq-enable --seq-block-time=1 --network sequencer --seq-genesis-file genesis/genesis_prefund_accounts.json --rpc-call-max-steps=4123000 --rpc-cors-enable"]
