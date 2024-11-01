@@ -15,6 +15,7 @@ CREATE TABLE public."Option_Rounds"
     available_options numeric(78,0) DEFAULT 0,
     clearing_price numeric(78,0),
     settlement_price numeric(78,0),
+    reserve_price numeric(78,0),
     strike_price numeric(78,0),
     sold_options numeric(78,0),
     state character varying(10) COLLATE pg_catalog."default",

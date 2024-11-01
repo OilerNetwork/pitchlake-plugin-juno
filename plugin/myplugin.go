@@ -112,6 +112,20 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 					p.db.UpsertLiquidityProviderState(tx, newLPState, block.Number)
 					p.db.UpdateVaultFields(tx, p.vaultAddress, map[string]interface{}{"unlocked_balance": vaultUnlocked, "latest_block": block.Number})
 				case "OptionRoundDeployed":
+
+					optionRound := models.OptionRound{
+						RoundID:        CombineFeltToBigInt(event.Data[0].Bytes(), event.Data[1].Bytes()),
+						Address:        event.Data[2].String(),
+						VaultAddress:   p.vaultAddress,
+						StartingBlock:  event.Data[3].Uint64(),
+						EndingBlock:    event.Data[4].Uint64(),
+						SettlementDate: event.Data[5].Uint64(),
+						StrikePrice:    CombineFeltToBigInt(event.Data[6].Bytes(), event.Data[7].Bytes()),
+						CapLevel:       FeltToBigInt(event.Data[8].Bytes()),
+						ReservePrice:   CombineFeltToBigInt(event.Data[9].Bytes(), event.Data[10].Bytes()),
+						State:          "Open",
+					}
+					p.db.CreateOptionRound(tx, &optionRound)
 				}
 
 			} else {
@@ -352,6 +366,12 @@ func CombineFeltToBigInt(highFelt, lowFelt [32]byte) models.BigInt {
 	return combinedInt
 }
 
+func FeltToBigInt(felt [32]byte) models.BigInt {
+
+	byteData := make([]byte, 32)
+	copy(byteData[:], felt[:])
+	return models.BigInt{Int: new(big.Int).SetBytes(byteData)}
+}
 func FeltToHexString(felt [32]byte) string {
 
 	combinedInt := models.BigInt{Int: new(big.Int).SetBytes(felt[:])}

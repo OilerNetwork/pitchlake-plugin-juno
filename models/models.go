@@ -82,6 +82,7 @@ type OptionBuyer struct {
 
 type OptionRound struct {
 	gorm.Model
+	VaultAddress      string `gorm:"column:vault_address;"`
 	Address           string `gorm:"column:address;not null"`
 	RoundID           BigInt `gorm:"column:round_id;not null"`
 	Bids              string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
@@ -95,7 +96,8 @@ type OptionRound struct {
 	SettlementPrice   BigInt `gorm:"column:settlement_price;not null"`
 	StrikePrice       BigInt `gorm:"column:strike_price;not null"`
 	SoldOptions       BigInt `gorm:"column:sold_options;not null"`
-	ClearingPrice     BigInt `gorm:"column:clearing_price;not null"`
+	ReservePrice      BigInt `gorm:"column:reserve_price"`
+	ClearingPrice     BigInt `gorm:"column:clearing_price"`
 	State             string `gorm:"column:state;not null"`
 	Premiums          BigInt `gorm:"column:premiums;not null"`
 	PayoutPerOption   BigInt `gorm:"column:payout_per_option;"`

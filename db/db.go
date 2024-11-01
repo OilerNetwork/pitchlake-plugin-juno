@@ -275,6 +275,12 @@ func (db *DB) CreateBid(tx *gorm.DB, bid *models.Bid) error {
 	}
 	return nil
 }
+func (db *DB) CreateOptionRound(tx *gorm.DB, round *models.OptionRound) error {
+	if err := tx.Create(round).Error; err != nil {
+		return err
+	}
+	return nil
+}
 
 // DeleteBid deletes a Bid record by its ID
 func (db *DB) DeleteBid(tx *gorm.DB, bidID string, roundAddress string) error {
