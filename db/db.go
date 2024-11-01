@@ -6,6 +6,7 @@ import (
 	"log"
 	"math/big"
 
+	"github.com/golang-migrate/migrate"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -17,24 +18,34 @@ type DB struct {
 func Init(dsn string) (*DB, error) {
 	log.Printf("connecting to %s", dsn)
 	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
+
 	if err != nil {
 		log.Fatalf("Failed to connect to the database: %v", err)
 		return nil, err
 	}
 
-	// Automatically migrate your schema
-	err = conn.AutoMigrate(
-		&models.Vault{},
-		&models.LiquidityProvider{},
-		&models.OptionBuyer{},
-		&models.OptionRound{},
-		&models.VaultState{},
-		&models.Bid{},
-	)
+	m, err := migrate.New(
+		"file://db/migrations",
+		dsn)
 	if err != nil {
-		log.Fatalf("Failed to migrate database schema: %v", err)
-		return nil, err
+		log.Fatal(err)
 	}
+	if err := m.Up(); err != nil {
+		log.Fatal(err)
+	}
+	// Automatically migrate your schema
+	// err = conn.AutoMigrate(
+	// 	&models.Vault{},
+	// 	&models.LiquidityProvider{},
+	// 	&models.OptionBuyer{},
+	// 	&models.OptionRound{},
+	// 	&models.VaultState{},
+	// 	&models.Bid{},
+	// )
+	// if err != nil {
+	// 	log.Fatalf("Failed to migrate database schema: %v", err)
+	// 	return nil, err
+	// }
 
 	return &DB{Conn: conn}, nil
 }
@@ -242,8 +253,8 @@ func (db *DB) UpdateOptionRoundFields(tx *gorm.DB, address string, updates map[s
 	return tx.Model(models.OptionRound{}).Where("address = ?", address).Updates(updates).Error
 }
 
-func (db *DB) UpdateVaultFields(tx *gorm.DB, updates map[string]interface{}) error {
-	return tx.Model(models.OptionRound{}).Updates(updates).Error
+func (db *DB) UpdateVaultFields(tx *gorm.DB, address string, updates map[string]interface{}) error {
+	return tx.Model(models.OptionRound{}).Where("address = ?", address).Updates(updates).Error
 }
 func (db *DB) UpdateLiquidityProviderFields(tx *gorm.DB, address string, updates map[string]interface{}) error {
 	return tx.Model(models.LiquidityProviderState{}).Where("address = ?", address).Updates(updates).Error

@@ -4,12 +4,13 @@ go 1.23.1
 
 require (
 	github.com/NethermindEth/juno v0.12.2
+	github.com/golang-migrate/migrate v3.5.4+incompatible
 	golang.org/x/crypto v0.28.0
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.12
 )
 
-replace github.com/NethermindEth/juno => ./juno
+replace github.com/NethermindEth/juno => ../juno/juno
 
 require (
 	github.com/DataDog/zstd v1.5.6-0.20230824185856-869dae002e5e // indirect

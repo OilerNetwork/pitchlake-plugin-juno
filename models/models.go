@@ -134,10 +134,30 @@ type Bid struct {
 	BuyerAddress string `gorm:"column:buyer_address;not null"`
 	RoundAddress string `gorm:"column:round_address;not null"`
 	BidID        string `gorm:"column:bid_id;not null"`
-	TreeNonce    BigInt `gorm:"column:tree_nonce;not null"`
+	TreeNonce    uint64 `gorm:"column:tree_nonce;not null"`
 	Amount       BigInt `gorm:"column:amount;not null"`
 	Price        BigInt `gorm:"column:price;not null"`
 }
 
-type Position struct {
+func (VaultState) TableName() string {
+	return "VaultStates"
+}
+func (LiquidityProviderState) TableName() string {
+	return "Liquidity_Providers"
+}
+
+func (OptionRound) TableName() string {
+	return "Option_Rounds"
+}
+
+func (QueuedLiquidity) TableName() string {
+	return "Queued_Liquidity"
+}
+
+func (Bid) TableName() string {
+	return "Bids"
+}
+
+func (OptionBuyer) TableName() string {
+	return "Option_Buyers"
 }
