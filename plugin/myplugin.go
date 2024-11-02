@@ -3,7 +3,6 @@ package main
 import (
 	"junoplugin/adaptors"
 	"junoplugin/db"
-	"junoplugin/events"
 	"junoplugin/models"
 	"log"
 	"os"
@@ -45,7 +44,8 @@ func (p *pitchlakePlugin) Init() error {
 	p.pgAdaptor = &adaptors.PostgresAdapter{}
 	p.db = dbClient
 	p.vaultHash = os.Getenv("VAULT_HASH")
-	p.log = log.Default()
+
+	//Add function to catch up on vaults/rounds that are not synced to currentBlock
 	return nil
 }
 
@@ -106,7 +106,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 }
 
 func (p *pitchlakePlugin) processUDC(event *core.Event) error {
-	eventHash := events.Keccak256("ContractDeployed")
+	eventHash := adaptors.Keccak256("ContractDeployed")
 	address := adaptors.FeltToHexString(event.Data[0].Bytes())
 	classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
 
@@ -120,7 +120,7 @@ func (p *pitchlakePlugin) processUDC(event *core.Event) error {
 }
 
 func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Event, blockNumber uint64) error {
-	eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
+	eventName, err := adaptors.DecodeEventNameVault(event.Keys[0].String())
 	if err != nil {
 		log.Fatalf("Failed to decode event: %v", err)
 		return err
@@ -148,7 +148,7 @@ func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Eve
 	if err != nil {
 		return err
 	}
-	eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
+	eventName, err := adaptors.DecodeEventNameRound(event.Keys[0].String())
 	if err != nil {
 		log.Fatalf("Failed to decode event: %v", err)
 		return err
@@ -190,7 +190,7 @@ func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Eve
 }
 
 func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Event, blockNumber uint64) error {
-	eventName, err := events.DecodeEventNameVault(event.Keys[0].String())
+	eventName, err := adaptors.DecodeEventNameVault(event.Keys[0].String())
 	if err != nil {
 		log.Fatalf("Failed to decode event: %v", err)
 		return err
@@ -202,12 +202,15 @@ func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Even
 		lpAddress := event.Keys[1].String()
 		p.db.DepositOrWithdrawRevert(vaultAddress, lpAddress, blockNumber)
 	case "OptionRoundDeployed":
+		roundAddress := adaptors.FeltToHexString(event.Data[2].Bytes())
+		p.db.DeleteOptionRound(roundAddress)
 	}
+
 	return nil
 }
 
 func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Event, blockNumber uint64) error {
-	eventName, err := events.DecodeEventNameRound(event.Keys[0].String())
+	eventName, err := adaptors.DecodeEventNameRound(event.Keys[0].String())
 	if err != nil {
 		log.Fatalf("Failed to decode event: %v", err)
 		return err

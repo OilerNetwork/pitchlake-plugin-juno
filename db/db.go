@@ -262,8 +262,8 @@ func (db *DB) UpdateLiquidityProviderFields(address string, updates map[string]i
 }
 
 // DeleteOptionRound deletes an OptionRound record by its ID
-func (db *DB) DeleteOptionRound(id uint) error {
-	if err := db.tx.Delete(&models.OptionRound{}, id).Error; err != nil {
+func (db *DB) DeleteOptionRound(roundAddress string) error {
+	if err := db.tx.Where("address = ?", roundAddress).Delete(&models.OptionRound{}).Error; err != nil {
 		return err
 	}
 	return nil

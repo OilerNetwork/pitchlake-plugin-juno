@@ -13,9 +13,9 @@ func (db *DB) DepositOrWithdrawRevert(vaultAddress, lpAddress string, blockNumbe
 	db.RevertLPState(lpAddress, blockNumber)
 }
 
-func (db *DB) RoundDeployedRevert(optionRound models.OptionRound) {
+func (db *DB) RoundDeployedRevert(roundAddress string) {
 
-	db.CreateOptionRound(&optionRound)
+	db.DeleteOptionRound(roundAddress)
 }
 
 func (db *DB) AuctionStartedRevert(vaultAddress, roundAddress string, blockNumber uint64) {
