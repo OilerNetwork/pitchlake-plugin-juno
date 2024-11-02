@@ -6,13 +6,11 @@ import (
 	"junoplugin/events"
 	"junoplugin/models"
 	"log"
-	"math/big"
 	"os"
 
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
 	junoplugin "github.com/NethermindEth/juno/plugin"
-	"golang.org/x/crypto/sha3"
 )
 
 // Todo: push this stuff to a config file / cmd line
@@ -57,27 +55,6 @@ func (p *pitchlakePlugin) Shutdown() error {
 	return nil
 }
 
-func keccak256(eventName string) string {
-	hasher := sha3.NewLegacyKeccak256()
-
-	// Write the event name as bytes to the hasher
-	hasher.Write([]byte(eventName))
-
-	// Compute the full 256-bit hash
-	hashBytes := hasher.Sum(nil)
-
-	// Convert the hash to a big integer
-	hashInt := new(big.Int).SetBytes(hashBytes)
-
-	// Apply a 250-bit mask to fit StarkNet's felt requirements
-	mask := new(big.Int).Lsh(big.NewInt(1), 250)
-	mask.Sub(mask, big.NewInt(1))
-	hashInt.And(hashInt, mask)
-
-	// Convert the masked hash to a hexadecimal string with "0x" prefix
-	return "0x" + hashInt.Text(16)
-}
-
 func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpdate, newClasses map[felt.Felt]core.Class) error {
 
 	p.db.Begin()
@@ -105,7 +82,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 
 func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, reverseStateDiff *core.StateDiff) error {
 	p.log.Println("ExamplePlugin NewBlock called")
-	tx := p.db.Conn.Begin()
+	p.db.Begin()
 	length := len(from.Block.Receipts)
 	for i := length - 1; i >= 0; i-- {
 		receipt := from.Block.Receipts[i]
@@ -124,12 +101,12 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 			}
 		}
 	}
-	tx.Commit()
+	p.db.Commit()
 	return nil
 }
 
 func (p *pitchlakePlugin) processUDC(event *core.Event) error {
-	eventHash := keccak256("ContractDeployed")
+	eventHash := events.Keccak256("ContractDeployed")
 	address := adaptors.FeltToHexString(event.Data[0].Bytes())
 	classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
 
@@ -164,6 +141,7 @@ func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Eve
 	}
 	return nil
 }
+
 func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Event, blockNumber uint64) error {
 	var err error
 	p.prevStateOptionRound, err = p.db.GetOptionRoundByAddress(roundAddress)

@@ -27,7 +27,7 @@ var roundEventNames = []string{
 }
 
 // keccak256 function to hash the event name
-func keccak256(eventName string) string {
+func Keccak256(eventName string) string {
 	hasher := sha3.NewLegacyKeccak256()
 
 	// Write the event name as bytes to the hasher
@@ -51,7 +51,7 @@ func keccak256(eventName string) string {
 // DecodeEventName decodes the event name from the keys of a StarkNet event
 func DecodeEventNameRound(eventKey string) (string, error) {
 	for _, name := range roundEventNames {
-		if keccak256(name) == eventKey {
+		if Keccak256(name) == eventKey {
 			return name, nil
 		}
 	}
@@ -60,7 +60,7 @@ func DecodeEventNameRound(eventKey string) (string, error) {
 
 func DecodeEventNameVault(eventKey string) (string, error) {
 	for _, name := range vaultEventNames {
-		if keccak256(name) == eventKey {
+		if Keccak256(name) == eventKey {
 			return name, nil
 		}
 	}
