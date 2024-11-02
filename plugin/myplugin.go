@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"junoplugin/adaptors"
 	"junoplugin/db"
 	"junoplugin/events"
 	"junoplugin/models"
@@ -28,6 +29,7 @@ type pitchlakePlugin struct {
 	prevStateOptionRound *models.OptionRound
 	db                   *db.DB
 	log                  *log.Logger
+	pgAdaptor            *adaptors.PostgresAdapter
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -39,12 +41,13 @@ var _ junoplugin.JunoPlugin = (*pitchlakePlugin)(nil)
 func (p *pitchlakePlugin) Init() error {
 	dbUrl := os.Getenv("DB_URL")
 	p.udcAddress = os.Getenv("UDC")
-	db, err := db.Init(dbUrl)
+	dbClient, err := db.Init(dbUrl)
 	if err != nil {
 		log.Fatalf("Failed to initialise db: %v", err)
 		return err
 	}
-	p.db = db
+	p.pgAdaptor = &adaptors.PostgresAdapter{}
+	p.db = dbClient
 	p.vaultHash = os.Getenv("VAULT_HASH")
 	p.log = log.Default()
 	return nil
@@ -79,7 +82,7 @@ func keccak256(eventName string) string {
 
 func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpdate, newClasses map[felt.Felt]core.Class) error {
 
-	tx := p.db.Conn.Begin()
+	p.db.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {
 		for _, event := range receipt.Events {
@@ -104,28 +107,17 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 				}
 				switch eventName {
 				case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
-					lpUnlocked := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[3].Bytes())
-					vaultUnlocked := CombineFeltToBigInt(event.Data[4].Bytes(), event.Data[5].Bytes())
+					lpAddress, lpUnlocked, vaultUnlocked := p.pgAdaptor.DepositOrWithdraw(*event)
 
+					p.db.DepositOrWithdrawIndex(p.vaultAddress, lpAddress, lpUnlocked, vaultUnlocked, block.Number)
 					//Map the other parameters as well
-					var newLPState = &(models.LiquidityProviderState{Address: event.Data[1].String(), UnlockedBalance: lpUnlocked, LatestBlock: block.Number})
-					p.db.UpsertLiquidityProviderState(tx, newLPState, block.Number)
-					p.db.UpdateVaultFields(tx, p.vaultAddress, map[string]interface{}{"unlocked_balance": vaultUnlocked, "latest_block": block.Number})
+
 				case "OptionRoundDeployed":
 
-					optionRound := models.OptionRound{
-						RoundID:        CombineFeltToBigInt(event.Data[0].Bytes(), event.Data[1].Bytes()),
-						Address:        event.Data[2].String(),
-						VaultAddress:   p.vaultAddress,
-						StartingBlock:  event.Data[3].Uint64(),
-						EndingBlock:    event.Data[4].Uint64(),
-						SettlementDate: event.Data[5].Uint64(),
-						StrikePrice:    CombineFeltToBigInt(event.Data[6].Bytes(), event.Data[7].Bytes()),
-						CapLevel:       FeltToBigInt(event.Data[8].Bytes()),
-						ReservePrice:   CombineFeltToBigInt(event.Data[9].Bytes(), event.Data[10].Bytes()),
-						State:          "Open",
-					}
-					p.db.CreateOptionRound(tx, &optionRound)
+					optionRound := p.pgAdaptor.RoundDeployed(*event)
+
+					p.db.RoundDeployedIndex(optionRound)
+					p.roundAddresses = append(p.roundAddresses, optionRound.Address)
 				}
 
 			} else {
@@ -139,79 +131,37 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 						}
 						switch eventName {
 						case "AuctionStarted":
-							availableOptions := CombineFeltToBigInt(event.Data[0].Bytes(), event.Data[1].Bytes())
-							startingLiquidity := CombineFeltToBigInt(event.Data[0].Bytes(), event.Data[1].Bytes())
-							p.db.UpdateOptionRoundFields(tx, roundAddress, map[string]interface{}{
-								"available_options":  availableOptions,
-								"starting_liquidity": startingLiquidity,
-								"state":              "Auctioning",
-							})
-							p.db.UpdateAllLiquidityProvidersBalancesAuctionStart(tx, block.Number)
-							p.db.UpdateVaultBalancesAuctionStart(tx, block.Number)
+							availableOptions, startingLiquidity := p.pgAdaptor.AuctionStarted(*event)
+							p.db.AuctionStartedIndex(roundAddress, block.Number, availableOptions, startingLiquidity)
 						case "AuctionEnded":
 
-							optionsSold := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
-							clearingPrice := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
-							clearingNonce := CombineFeltToBigInt(event.Data[5].Bytes(), event.Data[4].Bytes())
-							premiums := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, clearingPrice.Int)}
+							optionsSold, clearingPrice, clearingNonce, premiums := p.pgAdaptor.AuctionEnded(*event)
 
-							unsoldLiquidity := models.BigInt{Int: new(big.Int).Sub(
-								p.prevStateOptionRound.StartingLiquidity.Int,
-								new(big.Int).Div(
-									new(big.Int).Mul(
-										p.prevStateOptionRound.StartingLiquidity.Int,
-										p.prevStateOptionRound.SoldOptions.Int,
-									),
-									p.prevStateOptionRound.AvailableOptions.Int,
-								),
-							)}
-							p.db.UpdateAllLiquidityProvidersBalancesAuctionEnd(tx, p.prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums, block.Number)
-							p.db.UpdateVaultBalancesAuctionEnd(tx, unsoldLiquidity, premiums, block.Number)
-							p.db.UpdateBiddersAuctionEnd(tx, roundAddress, clearingPrice, optionsSold, clearingNonce)
-							p.db.UpdateOptionRoundAuctionEnd(tx, roundAddress, clearingPrice, optionsSold)
+							p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, block.Number, optionsSold, clearingPrice, clearingNonce, premiums)
 						case "OptionRoundSettled":
 
-							totalPayout := CombineFeltToBigInt(event.Data[0].Bytes(), event.Data[1].Bytes())
-							settlementPrice := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[3].Bytes())
-							p.db.UpdateVaultBalancesOptionSettle(tx, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, block.Number)
-							p.db.UpdateAllLiquidityProvidersBalancesOptionSettle(tx, roundAddress, p.prevStateOptionRound.StartingLiquidity, p.prevStateOptionRound.QueuedLiquidity, totalPayout, models.BigInt{Int: new(big.Int).SetUint64(block.Number)})
-							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
-								"settlement_price": settlementPrice,
-								"total_payout":     totalPayout,
-								"state":            "Settled",
-							})
+							totalPayout, settlementPrice := p.pgAdaptor.RoundSettled(*event)
+							p.db.RoundSettledIndex(*p.prevStateOptionRound, roundAddress, block.Number, totalPayout, settlementPrice)
 						case "BidAccepted":
-							bidAmount := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[1].Bytes())
-							bidPrice := CombineFeltToBigInt(event.Data[4].Bytes(), event.Data[3].Bytes())
-							treeNonce := event.Data[5].Uint64()
-
-							var bid models.Bid
-							bid.BuyerAddress = event.Keys[0].String()
-							bid.BidID = event.Data[0].String()
-							bid.RoundAddress = roundAddress
-							bid.Amount = bidAmount
-							bid.Price = bidPrice
-							bid.TreeNonce = treeNonce
-							p.db.CreateBid(tx, &bid)
+							bid := p.pgAdaptor.BidAccepted(*event)
+							p.db.BidAcceptedIndex(bid)
 						case "BidUpdated":
-							tx.Model(models.Bid{}).Where("bid_id = ?", event.Data[0].String()).Updates(map[string]interface{}{
-								"amount":     gorm.Expr("amount + ?", CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[2].Bytes())),
-								"tree_nonce": event.Data[3].Uint64(),
-							})
+							bidId, amount, treeNonce := p.pgAdaptor.BidUpdated(*event)
+							p.db.BidUpdatedIndex(bidId, amount, treeNonce)
 
 						case "OptionsMinted":
 
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_minted": true,
 							})
 						case "UnusedBidsRefunded":
 
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_refunded": true,
 							})
 						case "OptionsExercised":
 
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_minted": true,
 							})
 						case "Transfer":
@@ -222,7 +172,7 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 			}
 		}
 	}
-	tx.Commit()
+	p.db.Commit()
 	return nil
 }
 
@@ -250,8 +200,8 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 					// var newVaultState = &(models.VaultState{Address: p.vaultAddress.String()})
 					// p.db.UpsertLiquidityProviderState(newLPState)
 					// p.db.UpdateVaultState(newVaultState)
-					p.db.RevertVaultState(tx, p.vaultAddress, from.Block.Number)
-					p.db.RevertLPState(tx, event.Keys[0].String(), from.Block.Number)
+					p.db.RevertVaultState(p.vaultAddress, from.Block.Number)
+					p.db.RevertLPState(event.Keys[0].String(), from.Block.Number)
 				case "OptionRoundDeployed":
 				}
 
@@ -266,44 +216,44 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 						}
 						switch eventName {
 						case "AuctionStarted":
-							p.db.RevertVaultState(tx, p.vaultAddress, from.Block.Number)
-							p.db.RevertAllLPState(tx, from.Block.Number)
-							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
+							p.db.RevertVaultState(p.vaultAddress, from.Block.Number)
+							p.db.RevertAllLPState(from.Block.Number)
+							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
 								"available_options":  0,
 								"starting_liquidity": 0,
 								"state":              "Open",
 							})
 						case "AuctionEnded":
-							p.db.RevertVaultState(tx, p.vaultAddress, from.Block.Number)
-							p.db.RevertAllLPState(tx, from.Block.Number)
-							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
+							p.db.RevertVaultState(p.vaultAddress, from.Block.Number)
+							p.db.RevertAllLPState(from.Block.Number)
+							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
 								"clearing_price": nil,
 								"options_sold":   nil,
 								"state":          "Auctioning",
 							})
-							p.db.UpdateAllOptionBuyerFields(tx, roundAddress, map[string]interface{}{
+							p.db.UpdateAllOptionBuyerFields(roundAddress, map[string]interface{}{
 								"tokenizable_options": 0,
 								"refundable_amount":   0,
 							})
 
 						case "OptionRoundSettled":
-							p.db.RevertVaultState(tx, p.vaultAddress, from.Block.Number)
-							p.db.RevertAllLPState(tx, from.Block.Number)
-							p.db.UpdateOptionRoundFields(tx, p.prevStateOptionRound.Address, map[string]interface{}{
+							p.db.RevertVaultState(p.vaultAddress, from.Block.Number)
+							p.db.RevertAllLPState(from.Block.Number)
+							p.db.UpdateOptionRoundFields(p.prevStateOptionRound.Address, map[string]interface{}{
 								"settlement_price": 0,
 								"total_payout":     0,
 								"state":            "Running",
 							})
 						case "BidAccepted":
 							id := event.Data[1].String()
-							p.db.DeleteBid(tx, id, roundAddress)
+							p.db.DeleteBid(id, roundAddress)
 						case "BidUpdated":
 							tx.Model(models.Bid{}).Where("bid_id = ?", event.Data[0].String()).Updates(map[string]interface{}{
 								"amount":     gorm.Expr("amount - ?", CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[2].Bytes())),
 								"tree_nonce": event.Data[4].Uint64(),
 							})
 						case "OptionsMinted":
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_minted": false,
 							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
@@ -315,7 +265,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							// 	"tokenizable_options": 0,
 							// })
 						case "UnusedBidsRefunded":
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_refunded": false,
 							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
@@ -328,7 +278,7 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 							// })
 						case "OptionsExercised":
 
-							p.db.UpdateOptionBuyerFields(tx, event.Keys[0].String(), roundAddress, map[string]interface{}{
+							p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
 								"has_minted": false,
 							})
 							// optionRound, err := p.db.GetOptionRoundByAddress(roundAddress.String())
