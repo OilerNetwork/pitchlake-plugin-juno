@@ -82,9 +82,10 @@ func (p *PostgresAdapter) BidAccepted(event core.Event) models.Bid {
 	return bid
 }
 
-func (p *PostgresAdapter) BidUpdated(event core.Event) (string, models.BigInt, uint64) {
+func (p *PostgresAdapter) BidUpdated(event core.Event) (string, models.BigInt, uint64, uint64) {
 	bidId := event.Data[0].String()
 	amount := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[2].Bytes())
-	treeNonce := event.Data[3].Uint64()
-	return bidId, amount, treeNonce
+	treeNonceOld := event.Data[3].Uint64()
+	treeNonceNew := event.Data[4].Uint64()
+	return bidId, amount, treeNonceOld, treeNonceNew
 }
