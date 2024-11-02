@@ -3,18 +3,17 @@ FROM ubuntu:24.10 AS build
 
 ARG VM_DEBUG
 
-
 RUN apt-get -qq update && \
     apt-get -qq install curl build-essential git golang upx-ucl libjemalloc-dev libjemalloc2 -y
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -q -y
 
 WORKDIR /plugin
 
-# Copy source code
 COPY . .
 
+RUN cd juno && \
+    git checkout pitchlake/plugin-sequencer 
 
-# Build the project
 RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
 
 RUN pwd
@@ -36,7 +35,8 @@ WORKDIR /app
 # Copy the Juno binary and the plugin from the build stage
 COPY --from=build /plugin/juno/build/juno ./build/
 COPY --from=build /plugin/myplugin.so ./
+COPY --from=build /plugin/juno/genesis ./genesis
 COPY .env ./
 
 # Run Juno with the plugin
-CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so"]
+CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --db-path=../seq-db --seq-enable --seq-block-time=1 --network sequencer --seq-genesis-file genesis/genesis_prefund_accounts.json --rpc-cors-enable"]
