@@ -2,11 +2,15 @@ package db
 
 import (
 	"errors"
+	"fmt"
 	"junoplugin/models"
 	"log"
 	"math/big"
+	"os"
 
 	"github.com/golang-migrate/migrate"
+	_ "github.com/golang-migrate/migrate/database/postgres"
+	_ "github.com/golang-migrate/migrate/source/file"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -24,16 +28,23 @@ func Init(dsn string) (*DB, error) {
 		log.Fatalf("Failed to connect to the database: %v", err)
 		return nil, err
 	}
+	wd, _ := os.Getwd()
+	fmt.Println("Current working directory:", wd)
 
 	m, err := migrate.New(
 		"file://db/migrations",
 		dsn)
 	if err != nil {
+		log.Printf("FAIlED HERE 1")
 		log.Fatal(err)
 	}
 	if err := m.Up(); err != nil {
-		log.Fatal(err)
+		if err != migrate.ErrNoChange {
+			log.Fatal(err)
+		}
+
 	}
+	m.Close()
 	// Automatically migrate your schema
 	// err = conn.AutoMigrate(
 	// 	&models.Vault{},
@@ -446,7 +457,8 @@ func (db *DB) RevertLPState(address string, blockNumber uint64) error {
 }
 
 func (db *DB) Begin() {
-	db.tx = db.Conn.Begin()
+	tx := db.Conn.Begin()
+	db.tx = tx
 }
 
 func (db *DB) Commit() {

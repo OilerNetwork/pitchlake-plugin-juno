@@ -44,7 +44,7 @@ func (p *pitchlakePlugin) Init() error {
 	p.pgAdaptor = &adaptors.PostgresAdapter{}
 	p.db = dbClient
 	p.vaultHash = os.Getenv("VAULT_HASH")
-
+	p.log = log.Default()
 	//Add function to catch up on vaults/rounds that are not synced to currentBlock
 	return nil
 }

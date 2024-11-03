@@ -1,4 +1,4 @@
 [submodule "juno"]
-	path = juno
-	url = https://github.com/NethermindEth/juno
+	path = ./juno
+	url = https://github.com/NethermindEth/juno.git
 	branch = pitchlake/plugin-sequencer

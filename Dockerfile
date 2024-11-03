@@ -11,10 +11,10 @@ WORKDIR /plugin
 
 COPY . .
 
-RUN cd juno && \
+RUN git clone https://github.com/NethermindEth/juno.git &&\
+    cd juno && \
     git checkout pitchlake/plugin-sequencer 
-
-RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
+RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make clean && make juno'
 
 RUN pwd
 RUN ls
@@ -33,6 +33,7 @@ RUN apt-get -qq update && \
 WORKDIR /app
 
 # Copy the Juno binary and the plugin from the build stage
+COPY --from=build /plugin/db/migrations ./db/migrations
 COPY --from=build /plugin/juno/build/juno ./build/
 COPY --from=build /plugin/myplugin.so ./
 COPY --from=build /plugin/juno/genesis ./genesis
