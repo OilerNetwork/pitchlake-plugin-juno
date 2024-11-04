@@ -24,7 +24,7 @@ type pitchlakePlugin struct {
 	prevStateOptionRound *models.OptionRound
 	db                   *db.DB
 	log                  *log.Logger
-	pgAdaptor            *adaptors.PostgresAdapter
+	junoAdaptor          *adaptors.JunoAdaptor
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -41,7 +41,7 @@ func (p *pitchlakePlugin) Init() error {
 		log.Fatalf("Failed to initialise db: %v", err)
 		return err
 	}
-	p.pgAdaptor = &adaptors.PostgresAdapter{}
+	p.junoAdaptor = &adaptors.JunoAdaptor{}
 	p.db = dbClient
 	p.vaultHash = os.Getenv("VAULT_HASH")
 	p.log = log.Default()
@@ -127,14 +127,14 @@ func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Eve
 	}
 	switch eventName {
 	case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
-		lpAddress, lpUnlocked, vaultUnlocked := p.pgAdaptor.DepositOrWithdraw(*event)
+		lpAddress, lpUnlocked, vaultUnlocked := p.junoAdaptor.DepositOrWithdraw(*event)
 
 		p.db.DepositOrWithdrawIndex(vaultAddress, lpAddress, lpUnlocked, vaultUnlocked, blockNumber)
 		//Map the other parameters as well
 
 	case "OptionRoundDeployed":
 
-		optionRound := p.pgAdaptor.RoundDeployed(*event)
+		optionRound := p.junoAdaptor.RoundDeployed(*event)
 
 		p.db.RoundDeployedIndex(optionRound)
 		p.roundAddresses = append(p.roundAddresses, optionRound.Address)
@@ -155,19 +155,19 @@ func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Eve
 	}
 	switch eventName {
 	case "AuctionStarted":
-		availableOptions, startingLiquidity := p.pgAdaptor.AuctionStarted(*event)
+		availableOptions, startingLiquidity := p.junoAdaptor.AuctionStarted(*event)
 		p.db.AuctionStartedIndex(roundAddress, blockNumber, availableOptions, startingLiquidity)
 	case "AuctionEnded":
-		optionsSold, clearingPrice, clearingNonce, premiums := p.pgAdaptor.AuctionEnded(*event)
+		optionsSold, clearingPrice, clearingNonce, premiums := p.junoAdaptor.AuctionEnded(*event)
 		p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, blockNumber, optionsSold, clearingPrice, clearingNonce, premiums)
 	case "OptionRoundSettled":
-		totalPayout, settlementPrice := p.pgAdaptor.RoundSettled(*event)
+		totalPayout, settlementPrice := p.junoAdaptor.RoundSettled(*event)
 		p.db.RoundSettledIndex(*p.prevStateOptionRound, roundAddress, blockNumber, totalPayout, settlementPrice)
 	case "BidAccepted":
-		bid := p.pgAdaptor.BidAccepted(*event)
+		bid := p.junoAdaptor.BidAccepted(*event)
 		p.db.BidAcceptedIndex(bid)
 	case "BidUpdated":
-		bidId, amount, _, treeNonceNew := p.pgAdaptor.BidUpdated(*event)
+		bidId, amount, _, treeNonceNew := p.junoAdaptor.BidUpdated(*event)
 		p.db.BidUpdatedIndex(bidId, amount, treeNonceNew)
 	case "OptionsMinted":
 		p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
@@ -231,7 +231,7 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 		id := event.Data[1].String()
 		p.db.BidAcceptedRevert(id, roundAddress)
 	case "BidUpdated":
-		bidId, amount, treeNonceOld, _ := p.pgAdaptor.BidUpdated(*event)
+		bidId, amount, treeNonceOld, _ := p.junoAdaptor.BidUpdated(*event)
 		p.db.BidUpdatedRevert(bidId, amount, treeNonceOld)
 	case "OptionsMinted":
 		p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{

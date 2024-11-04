@@ -10,6 +10,8 @@ require (
 	gorm.io/gorm v1.25.12
 )
 
+replace github.com/NethermindEth/juno => ../juno/juno
+
 require (
 	github.com/DataDog/zstd v1.5.6-0.20230824185856-869dae002e5e // indirect
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
@@ -73,5 +75,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-replace github.com/NethermindEth/juno => ./juno
