@@ -2,15 +2,24 @@ package adaptors
 
 import (
 	"junoplugin/models"
+	"log"
 	"math/big"
 
 	"github.com/NethermindEth/juno/core"
 )
 
 type JunoAdaptor struct {
+	AdaptorInterface
 }
 
-func (p *JunoAdaptor) DepositOrWithdraw(event core.Event) (string, models.BigInt, models.BigInt) {
+func (p *JunoAdaptor) DepositOrWithdraw(rawEvent interface{}) (string, models.BigInt, models.BigInt) {
+	event, ok := rawEvent.(core.Event)
+	if !ok {
+		// Handle the case where the input is not `core.Event`
+		// You could log an error, return an error, or handle it as needed.
+		log.Fatal("JunoAdaptor: expected core.Event type for event parameter")
+		return "", models.BigInt{}, models.BigInt{}
+	}
 	lpAddress := FeltToHexString(event.Keys[0].Bytes())
 	lpUnlocked := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[3].Bytes())
 	vaultUnlocked := CombineFeltToBigInt(event.Data[4].Bytes(), event.Data[5].Bytes())
