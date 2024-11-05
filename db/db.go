@@ -2,17 +2,16 @@ package db
 
 import (
 	"errors"
-	"fmt"
 	"junoplugin/models"
 	"log"
 	"math/big"
-	"os"
 
 	"github.com/golang-migrate/migrate"
 	_ "github.com/golang-migrate/migrate/database/postgres"
 	_ "github.com/golang-migrate/migrate/source/file"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type DB struct {
@@ -28,23 +27,12 @@ func Init(dsn string) (*DB, error) {
 		log.Fatalf("Failed to connect to the database: %v", err)
 		return nil, err
 	}
-	wd, _ := os.Getwd()
-	fmt.Println("Current working directory:", wd)
-
-	m, err := migrate.New(
-		"file://db/migrations",
-		dsn)
-	if err != nil {
+	if err := migrateDB(dsn); err != nil {
 		log.Printf("FAIlED HERE 1")
 		log.Fatal(err)
+		return nil, err
 	}
-	if err := m.Up(); err != nil {
-		if err != migrate.ErrNoChange {
-			log.Fatal(err)
-		}
 
-	}
-	m.Close()
 	// Automatically migrate your schema
 	// err = conn.AutoMigrate(
 	// 	&models.Vault{},
@@ -71,11 +59,39 @@ func (db *DB) Close() error {
 	return sqlDB.Close()
 }
 
+func migrateDB(dsn string) error {
+	m, err := migrate.New(
+		"file://db/migrations",
+		dsn)
+	if err != nil {
+		log.Printf("FAIlED HERE 1")
+		return err
+	}
+	if err := m.Up(); err != nil {
+		if err != migrate.ErrNoChange {
+			return err
+		}
+
+	}
+	m.Close()
+	return nil
+}
+
+func (db *DB) Begin() {
+	tx := db.Conn.Begin()
+	db.tx = tx
+}
+
+func (db *DB) Commit() {
+	db.tx.Commit()
+	db.tx = nil
+}
+
 func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber uint64) error {
 	return db.tx.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
 		"locked_balance":   gorm.Expr("unlocked_balance"),
 		"unlocked_balance": 0,
-		"last_block":       blockNumber,
+		"latest_block":     blockNumber,
 	}).Error
 }
 
@@ -83,7 +99,7 @@ func (db *DB) UpdateVaultBalancesAuctionStart(blockNumber uint64) error {
 	return db.tx.Model(models.VaultState{}).Updates(map[string]interface{}{
 		"unlocked_balance": 0,
 		"locked_balance":   gorm.Expr("unlocked_balance"),
-		"last_block":       blockNumber,
+		"latest_block":     blockNumber,
 	}).Error
 }
 
@@ -92,7 +108,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(startingLiquidity, u
 	return db.tx.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
 		"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
 		"unlocked_balance": gorm.Expr("unlocked_balance-FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
-		"last_block":       blockNumber,
+		"latest_block":     blockNumber,
 	}).Error
 }
 
@@ -101,7 +117,7 @@ func (db *DB) UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums models.Big
 	return db.tx.Model(models.VaultState{}).Updates(map[string]interface{}{
 		"unlocked_balance": gorm.Expr("unlocked_balance+?+?", unsoldLiquidity, premiums),
 		"locked_balance":   gorm.Expr("locked_balance-?", unsoldLiquidity),
-		"last_block":       blockNumber,
+		"latest_block":     blockNumber,
 	}).Error
 
 }
@@ -167,7 +183,7 @@ func (db *DB) UpdateVaultBalancesOptionSettle(remainingLiquidty, remainingLiquid
 		"stashed_balance":  gorm.Expr("stashed_balance+ ? ", remainingLiquidityStashed),
 		"unlocked_balance": gorm.Expr("unlocked_balance+?", difference),
 		"locked_balance":   0,
-		"last_block":       blockNumber,
+		"latest_block":     blockNumber,
 	}).Error
 
 }
@@ -176,7 +192,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundAddress strin
 	db.tx.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
 		"locked_balance":   0,
 		"unlocked_balance": gorm.Expr("unlocked_balance + locked_balance - locked_balance*?/?", totalPayout, startingLiquidity),
-		"last_block":       blockNumber,
+		"latest_block":     blockNumber,
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundAddress)
 	if err != nil {
@@ -212,45 +228,13 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundAddress strin
 	*/
 	return nil
 }
-func (db *DB) GetVaultByAddress(address string) (*models.Vault, error) {
-	var vault models.Vault
+
+func (db *DB) GetVaultByAddress(address string) (*models.VaultState, error) {
+	var vault models.VaultState
 	if err := db.tx.Where("address = ?", address).First(&vault).Error; err != nil {
 		return nil, err
 	}
 	return &vault, nil
-}
-
-func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, blockNumber uint64) error {
-	// Attempt to update the record based on the composite key (address and block_number)
-	if err := db.tx.Model(&models.LiquidityProvider{}).
-		Where("address = ?", lp.Address).
-		Updates(map[string]interface{}{
-			"unlocked_balance": lp.UnlockedBalance,
-			"locked_balance":   lp.LockedBalance,
-			"last_block":       blockNumber,
-		}).Error; err != nil {
-
-		// Handle the case where the record was not found
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			// Record not found, so create a new one
-			if createErr := db.tx.Create(lp).Error; createErr != nil {
-				return createErr // Handle any errors during the creation process
-			}
-		} else {
-			// Handle other errors (e.g., connection failure)
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (db *DB) UpdateOptionBuyerFields(address string, roundAddress string, updates map[string]interface{}) error {
-	return db.tx.Model(models.OptionRound{}).Where("address = ? AND round_address = ?", address, roundAddress).Updates(updates).Error
-}
-
-func (db *DB) UpdateAllOptionBuyerFields(roundAddress string, updates map[string]interface{}) error {
-	return db.tx.Model(models.OptionRound{}).Where("round_address=?", roundAddress).Updates(updates).Error
 }
 
 func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, error) {
@@ -261,46 +245,15 @@ func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, erro
 	return &or, nil
 }
 
-func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
-	return db.tx.Model(models.OptionRound{}).Where("address = ?", address).Updates(updates).Error
+func (db *DB) GetAllQueuedLiquidityForRound(roundAddress string) ([]models.QueuedLiquidity, error) {
+
+	var queuedAmounts []models.QueuedLiquidity
+	if err := db.Conn.Where("roundAddress=?", roundAddress).Find(&queuedAmounts).Error; err != nil {
+		return nil, err
+	}
+	return queuedAmounts, nil
 }
 
-func (db *DB) UpdateVaultFields(address string, updates map[string]interface{}) error {
-	return db.tx.Model(models.OptionRound{}).Where("address = ?", address).Updates(updates).Error
-}
-func (db *DB) UpdateLiquidityProviderFields(address string, updates map[string]interface{}) error {
-	return db.tx.Model(models.LiquidityProviderState{}).Where("address = ?", address).Updates(updates).Error
-}
-
-// DeleteOptionRound deletes an OptionRound record by its ID
-func (db *DB) DeleteOptionRound(roundAddress string) error {
-	if err := db.tx.Where("address = ?", roundAddress).Delete(&models.OptionRound{}).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// CreateBid creates a new Bid record in the database
-func (db *DB) CreateBid(bid *models.Bid) error {
-	if err := db.tx.Create(bid).Error; err != nil {
-		return err
-	}
-	return nil
-}
-func (db *DB) CreateOptionRound(round *models.OptionRound) error {
-	if err := db.tx.Create(round).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
-// DeleteBid deletes a Bid record by its ID
-func (db *DB) DeleteBid(bidID string, roundAddress string) error {
-	if err := db.tx.Model(&models.Bid{}).Where("round_address=? AND bid_id=?", roundAddress, bidID).Error; err != nil {
-		return err
-	}
-	return nil
-}
 func (db *DB) GetBidsForRound(roundAddress string) ([]models.Bid, error) {
 	var bids []models.Bid
 	if err := db.Conn.Where("round_address = ?", roundAddress).Order("price DESC").
@@ -333,14 +286,85 @@ func (db *DB) GetBidsBelowClearingForRound(roundAddress string, clearingPrice, c
 	}
 	return bids, nil
 }
+func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, blockNumber uint64) error {
+	// Log the input for debugging
+	// Log the input for debugging
+	log.Printf("Upserting LP: %+v, Block Number: %d", lp, blockNumber)
 
-func (db *DB) GetAllQueuedLiquidityForRound(roundAddress string) ([]models.QueuedLiquidity, error) {
+	// Perform upsert using GORM's Clauses with the transaction object
+	err := db.tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "address"}},
+		DoUpdates: clause.AssignmentColumns([]string{"unlocked_balance", "locked_balance", "latest_block"}),
+	}).Create(&models.LiquidityProviderState{
+		Address:         lp.Address,
+		UnlockedBalance: lp.UnlockedBalance,
+		LockedBalance:   lp.LockedBalance,
+		LatestBlock:     blockNumber,
+	}).Error
 
-	var queuedAmounts []models.QueuedLiquidity
-	if err := db.Conn.Where("roundAddress=?", roundAddress).Find(&queuedAmounts).Error; err != nil {
-		return nil, err
+	if err != nil {
+		log.Printf("Upsert error: %v", err)
+		return err
 	}
-	return queuedAmounts, nil
+
+	return nil
+
+}
+
+func (db *DB) UpdateOptionBuyerFields(address string, roundAddress string, updates map[string]interface{}) error {
+	return db.tx.Model(models.OptionRound{}).Where("address = ? AND round_address = ?", address, roundAddress).Updates(updates).Error
+}
+
+func (db *DB) UpdateAllOptionBuyerFields(roundAddress string, updates map[string]interface{}) error {
+	return db.tx.Model(models.OptionRound{}).Where("round_address=?", roundAddress).Updates(updates).Error
+}
+
+func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
+	return db.tx.Model(models.OptionRound{}).Where("address = ?", address).Updates(updates).Error
+}
+
+func (db *DB) UpdateVaultFields(address string, updates map[string]interface{}) error {
+	return db.tx.Model(models.VaultState{}).Where("address = ?", address).Updates(updates).Error
+}
+func (db *DB) UpdateLiquidityProviderFields(address string, updates map[string]interface{}) error {
+	return db.tx.Model(models.LiquidityProviderState{}).Where("address = ?", address).Updates(updates).Error
+}
+
+// DeleteOptionRound deletes an OptionRound record by its ID
+func (db *DB) DeleteOptionRound(roundAddress string) error {
+	if err := db.tx.Where("address = ?", roundAddress).Delete(&models.OptionRound{}).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// CreateBid creates a new Bid record in the database
+func (db *DB) CreateBid(bid *models.Bid) error {
+	if err := db.tx.Create(bid).Error; err != nil {
+		return err
+	}
+	return nil
+}
+func (db *DB) CreateOptionRound(round *models.OptionRound) error {
+	if err := db.tx.Create(round).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+func (db *DB) CreateVault(vault *models.VaultState) error {
+	if err := db.tx.Create(vault).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// DeleteBid deletes a Bid record by its ID
+func (db *DB) DeleteBid(bidID string, roundAddress string) error {
+	if err := db.tx.Model(&models.Bid{}).Where("round_address=? AND bid_id=?", roundAddress, bidID).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 // Revert Functions
@@ -373,7 +397,7 @@ func (db *DB) RevertVaultState(address string, blockNumber uint64) error {
 		"unlocked_balance": postRevert.UnlockedBalance,
 		"locked_balance":   postRevert.LockedBalance,
 		"stashed_balance":  postRevert.StashedBalance,
-		"last_block":       postRevert.BlockNumber,
+		"latest_block":     postRevert.BlockNumber,
 	}).Error; err != nil {
 		return err
 	}
@@ -411,7 +435,7 @@ func (db *DB) RevertAllLPState(blockNumber uint64) error {
 			"unlocked_balance": postRevert.UnlockedBalance,
 			"locked_balance":   postRevert.LockedBalance,
 			"stashed_balance":  postRevert.StashedBalance,
-			"last_block":       postRevert.BlockNumber,
+			"latest_block":     postRevert.BlockNumber,
 		}).Error; err != nil {
 			return err
 		}
@@ -448,24 +472,10 @@ func (db *DB) RevertLPState(address string, blockNumber uint64) error {
 		"unlocked_balance": postRevert.UnlockedBalance,
 		"locked_balance":   postRevert.LockedBalance,
 		"stashed_balance":  postRevert.StashedBalance,
-		"last_block":       postRevert.BlockNumber,
+		"latest_block":     postRevert.BlockNumber,
 	}).Error; err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (db *DB) Begin() {
-	tx := db.Conn.Begin()
-	db.tx = tx
-}
-
-func (db *DB) Commit() {
-	db.tx.Commit()
-	db.tx = nil
-}
-
-func (db *DB) Tx(tx *gorm.DB) {
-	db.tx = tx
 }

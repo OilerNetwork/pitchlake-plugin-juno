@@ -19,6 +19,15 @@ func (dbc *DB) RoundDeployedIndex(optionRound models.OptionRound) {
 	dbc.CreateOptionRound(&optionRound)
 }
 
+func (dbc *DB) PricingDataSetIndex(roundAddress string, strikePrice, capLevel, reservePrice models.BigInt) error {
+	dbc.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
+		"strike_price": strikePrice,
+		"capLevel":     capLevel,
+		"reservePrice": reservePrice,
+	})
+	return nil
+
+}
 func (dbc *DB) AuctionStartedIndex(roundAddress string, blockNumber uint64, availableOptions, startingLiquidity models.BigInt) {
 	dbc.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
 		"available_options":  availableOptions,

@@ -73,6 +73,7 @@ var roundEventNames = []string{
 	"OptionsMinted",
 	"UnusedBidsRefunded",
 	"OptionsExercised",
+	"PricingDataSet",
 }
 
 // keccak256 function to hash the event name

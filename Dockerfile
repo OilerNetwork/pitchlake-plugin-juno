@@ -27,7 +27,7 @@ FROM ubuntu:24.10
 
 # Install necessary runtime dependencies
 RUN apt-get -qq update && \
-    apt-get -qq install libjemalloc2 -y && \
+    apt-get -qq install -y ca-certificates curl gawk grep libjemalloc-dev libjemalloc2 && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -40,4 +40,4 @@ COPY --from=build /plugin/juno/genesis ./genesis
 COPY .env ./
 
 # Run Juno with the plugin
-CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --db-path=../seq-db --seq-enable --seq-block-time=1 --network sequencer --seq-genesis-file genesis/genesis_prefund_accounts.json --rpc-cors-enable"]
+CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --network sepolia --rpc-cors-enable --eth-node wss://eth-sepolia.g.alchemy.com/v2/wrZTn4qzJEx10PMampkqvHHUSDQPi6Ju --db-path=/snapshots/"]
