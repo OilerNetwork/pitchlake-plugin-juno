@@ -102,7 +102,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
 	return db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(
 		map[string]interface{}{
 			"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
-			"unlocked_balance": gorm.Expr("unlocked_balance-FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
+			"unlocked_balance": gorm.Expr("unlocked_balance+FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
 			"latest_block":     blockNumber,
 		}).Error
 }

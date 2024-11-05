@@ -60,13 +60,15 @@ func (p *JunoAdaptor) AuctionStarted(event core.Event) (models.BigInt, models.Bi
 	return availableOptions, startingLiquidity
 }
 
-func (p *JunoAdaptor) AuctionEnded(event core.Event) (models.BigInt, models.BigInt, uint64, models.BigInt) {
+func (p *JunoAdaptor) AuctionEnded(event core.Event) (models.BigInt, models.BigInt, models.BigInt, uint64, models.BigInt) {
 	optionsSold := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
 	clearingPrice := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
+	unsoldLiquidity := CombineFeltToBigInt(event.Data[5].Bytes(), event.Data[4].Bytes())
 	clearingNonce := event.Data[6].Uint64()
+	log.Printf("HERE'S THE DATA %v %v %v %v", optionsSold, clearingPrice, unsoldLiquidity, clearingNonce)
 	premiums := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, clearingPrice.Int)}
 
-	return optionsSold, clearingPrice, clearingNonce, premiums
+	return optionsSold, clearingPrice, unsoldLiquidity, clearingNonce, premiums
 }
 
 func (p *JunoAdaptor) RoundSettled(event core.Event) (models.BigInt, models.BigInt) {

@@ -201,8 +201,8 @@ func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Eve
 		availableOptions, startingLiquidity := p.junoAdaptor.AuctionStarted(*event)
 		p.db.AuctionStartedIndex(p.prevStateOptionRound.VaultAddress, roundAddress, blockNumber, availableOptions, startingLiquidity)
 	case "AuctionEnded":
-		optionsSold, clearingPrice, clearingNonce, premiums := p.junoAdaptor.AuctionEnded(*event)
-		p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, blockNumber, clearingNonce, optionsSold, clearingPrice, premiums)
+		optionsSold, clearingPrice, unsoldLiquidity, clearingNonce, premiums := p.junoAdaptor.AuctionEnded(*event)
+		p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, blockNumber, clearingNonce, optionsSold, clearingPrice, premiums, unsoldLiquidity)
 	case "OptionRoundSettled":
 		totalPayout, settlementPrice := p.junoAdaptor.RoundSettled(*event)
 		p.db.RoundSettledIndex(*p.prevStateOptionRound, roundAddress, blockNumber, totalPayout, settlementPrice)

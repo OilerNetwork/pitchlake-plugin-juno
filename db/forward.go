@@ -2,6 +2,7 @@ package db
 
 import (
 	"junoplugin/models"
+	"log"
 	"math/big"
 
 	"gorm.io/gorm"
@@ -41,17 +42,18 @@ func (dbc *DB) AuctionStartedIndex(vaultAddress, roundAddress string, blockNumbe
 	dbc.UpdateVaultBalanceAuctionStart(vaultAddress, blockNumber)
 }
 
-func (dbc *DB) AuctionEndedIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber, clearingNonce uint64, optionsSold, clearingPrice, premiums models.BigInt) {
+func (dbc *DB) AuctionEndedIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber, clearingNonce uint64, optionsSold, clearingPrice, premiums, unsoldData models.BigInt) {
 	unsoldLiquidity := models.BigInt{Int: new(big.Int).Sub(
 		prevStateOptionRound.StartingLiquidity.Int,
 		new(big.Int).Div(
 			new(big.Int).Mul(
 				prevStateOptionRound.StartingLiquidity.Int,
-				prevStateOptionRound.SoldOptions.Int,
+				optionsSold.Int,
 			),
 			prevStateOptionRound.AvailableOptions.Int,
 		),
 	)}
+	log.Printf("DATA %v %v %v ", unsoldLiquidity, unsoldData, optionsSold)
 	dbc.UpdateAllLiquidityProvidersBalancesAuctionEnd(prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums, blockNumber)
 	dbc.UpdateVaultBalancesAuctionEnd(prevStateOptionRound.VaultAddress, unsoldLiquidity, premiums, blockNumber)
 	dbc.UpdateBiddersAuctionEnd(roundAddress, clearingPrice, optionsSold, clearingNonce)
