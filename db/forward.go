@@ -20,25 +20,28 @@ func (dbc *DB) RoundDeployedIndex(optionRound models.OptionRound) {
 }
 
 func (dbc *DB) PricingDataSetIndex(roundAddress string, strikePrice, capLevel, reservePrice models.BigInt) error {
-	dbc.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
-		"strike_price": strikePrice,
-		"capLevel":     capLevel,
-		"reservePrice": reservePrice,
+	err := dbc.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
+		"strike_price":  strikePrice,
+		"cap_level":     capLevel,
+		"reserve_price": reservePrice,
 	})
+	if err != nil {
+		return err
+	}
 	return nil
 
 }
-func (dbc *DB) AuctionStartedIndex(roundAddress string, blockNumber uint64, availableOptions, startingLiquidity models.BigInt) {
+func (dbc *DB) AuctionStartedIndex(vaultAddress, roundAddress string, blockNumber uint64, availableOptions, startingLiquidity models.BigInt) {
 	dbc.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
 		"available_options":  availableOptions,
 		"starting_liquidity": startingLiquidity,
 		"state":              "Auctioning",
 	})
 	dbc.UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber)
-	dbc.UpdateVaultBalancesAuctionStart(blockNumber)
+	dbc.UpdateVaultBalanceAuctionStart(vaultAddress, blockNumber)
 }
 
-func (dbc *DB) AuctionEndedIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber uint64, optionsSold, clearingPrice, clearingNonce, premiums models.BigInt) {
+func (dbc *DB) AuctionEndedIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber, clearingNonce uint64, optionsSold, clearingPrice, premiums models.BigInt) {
 	unsoldLiquidity := models.BigInt{Int: new(big.Int).Sub(
 		prevStateOptionRound.StartingLiquidity.Int,
 		new(big.Int).Div(
@@ -50,7 +53,7 @@ func (dbc *DB) AuctionEndedIndex(prevStateOptionRound models.OptionRound, roundA
 		),
 	)}
 	dbc.UpdateAllLiquidityProvidersBalancesAuctionEnd(prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums, blockNumber)
-	dbc.UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums, blockNumber)
+	dbc.UpdateVaultBalancesAuctionEnd(prevStateOptionRound.VaultAddress, unsoldLiquidity, premiums, blockNumber)
 	dbc.UpdateBiddersAuctionEnd(roundAddress, clearingPrice, optionsSold, clearingNonce)
 	dbc.UpdateOptionRoundAuctionEnd(roundAddress, clearingPrice, optionsSold)
 }

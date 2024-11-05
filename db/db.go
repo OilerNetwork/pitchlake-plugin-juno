@@ -19,6 +19,13 @@ type DB struct {
 	tx   *gorm.DB
 }
 
+func (db *DB) CreateVault(vault *models.VaultState) error {
+	if err := db.tx.Create(vault).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func Init(dsn string) (*DB, error) {
 	log.Printf("connecting to %s", dsn)
 	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
@@ -27,12 +34,21 @@ func Init(dsn string) (*DB, error) {
 		log.Fatalf("Failed to connect to the database: %v", err)
 		return nil, err
 	}
-	if err := migrateDB(dsn); err != nil {
+
+	m, err := migrate.New(
+		"file://db/migrations",
+		dsn)
+	if err != nil {
 		log.Printf("FAIlED HERE 1")
 		log.Fatal(err)
-		return nil, err
 	}
+	if err := m.Up(); err != nil {
+		if err != migrate.ErrNoChange {
+			log.Fatal(err)
+		}
 
+	}
+	m.Close()
 	// Automatically migrate your schema
 	// err = conn.AutoMigrate(
 	// 	&models.Vault{},
@@ -59,81 +75,74 @@ func (db *DB) Close() error {
 	return sqlDB.Close()
 }
 
-func migrateDB(dsn string) error {
-	m, err := migrate.New(
-		"file://db/migrations",
-		dsn)
-	if err != nil {
-		log.Printf("FAIlED HERE 1")
-		return err
-	}
-	if err := m.Up(); err != nil {
-		if err != migrate.ErrNoChange {
-			return err
-		}
-
-	}
-	m.Close()
-	return nil
-}
-
-func (db *DB) Begin() {
-	tx := db.Conn.Begin()
-	db.tx = tx
-}
-
-func (db *DB) Commit() {
-	db.tx.Commit()
-	db.tx = nil
-}
-
 func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber uint64) error {
-	return db.tx.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
-		"locked_balance":   gorm.Expr("unlocked_balance"),
-		"unlocked_balance": 0,
-		"latest_block":     blockNumber,
-	}).Error
+	return db.tx.Model(models.LiquidityProviderState{}).Where("unlocked_balance > 0").Updates(
+		map[string]interface{}{
+			"locked_balance":   gorm.Expr("unlocked_balance"),
+			"unlocked_balance": 0,
+			"latest_block":     blockNumber,
+		}).Error
 }
 
-func (db *DB) UpdateVaultBalancesAuctionStart(blockNumber uint64) error {
-	return db.tx.Model(models.VaultState{}).Updates(map[string]interface{}{
-		"unlocked_balance": 0,
-		"locked_balance":   gorm.Expr("unlocked_balance"),
-		"latest_block":     blockNumber,
-	}).Error
+func (db *DB) UpdateVaultBalanceAuctionStart(vaultAddress string, blockNumber uint64) error {
+	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(
+		map[string]interface{}{
+			"unlocked_balance": 0,
+			"locked_balance":   gorm.Expr("unlocked_balance"),
+			"latest_block":     blockNumber,
+		}).Error
 }
 
-func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(startingLiquidity, unsoldLiquidity, premiums models.BigInt, blockNumber uint64) error {
+func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
+	startingLiquidity,
+	unsoldLiquidity,
+	premiums models.BigInt,
+	blockNumber uint64) error {
 
-	return db.tx.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
-		"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
-		"unlocked_balance": gorm.Expr("unlocked_balance-FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
-		"latest_block":     blockNumber,
-	}).Error
+	return db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(
+		map[string]interface{}{
+			"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
+			"unlocked_balance": gorm.Expr("unlocked_balance-FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
+			"latest_block":     blockNumber,
+		}).Error
 }
 
-func (db *DB) UpdateVaultBalancesAuctionEnd(unsoldLiquidity, premiums models.BigInt, blockNumber uint64) error {
+func (db *DB) UpdateVaultBalancesAuctionEnd(
+	vaultAddress string,
+	unsoldLiquidity,
+	premiums models.BigInt,
+	blockNumber uint64) error {
 
-	return db.tx.Model(models.VaultState{}).Updates(map[string]interface{}{
-		"unlocked_balance": gorm.Expr("unlocked_balance+?+?", unsoldLiquidity, premiums),
-		"locked_balance":   gorm.Expr("locked_balance-?", unsoldLiquidity),
-		"latest_block":     blockNumber,
-	}).Error
+	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(
+		map[string]interface{}{
+			"unlocked_balance": gorm.Expr("unlocked_balance+?+?", unsoldLiquidity, premiums),
+			"locked_balance":   gorm.Expr("locked_balance-?", unsoldLiquidity),
+			"latest_block":     blockNumber,
+		}).Error
 
 }
 
-func (db *DB) UpdateOptionRoundAuctionEnd(address string, clearingPrice, optionsSold models.BigInt) error {
-	err := db.UpdateOptionRoundFields(address, map[string]interface{}{
-		"clearing_price": clearingPrice,
-		"options_sold":   optionsSold,
-		"state":          "Running",
-	})
+func (db *DB) UpdateOptionRoundAuctionEnd(
+	address string,
+	clearingPrice,
+	optionsSold models.BigInt) error {
+	err := db.UpdateOptionRoundFields(
+		address,
+		map[string]interface{}{
+			"clearing_price": clearingPrice,
+			"sold_options":   optionsSold,
+			"state":          "Running",
+		})
 	if err != nil {
 		return err
 	}
 	return nil
 }
-func (db *DB) UpdateBiddersAuctionEnd(roundAddress string, clearingPrice, clearingOptionsSold, clearingNonce models.BigInt) error {
+func (db *DB) UpdateBiddersAuctionEnd(
+	roundAddress string,
+	clearingPrice,
+	clearingOptionsSold models.BigInt,
+	clearingNonce uint64) error {
 	bidsAbove, err := db.GetBidsAboveClearingForRound(roundAddress, clearingPrice, clearingNonce)
 	if err != nil {
 		return err
@@ -228,7 +237,6 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundAddress strin
 	*/
 	return nil
 }
-
 func (db *DB) GetVaultByAddress(address string) (*models.VaultState, error) {
 	var vault models.VaultState
 	if err := db.tx.Where("address = ?", address).First(&vault).Error; err != nil {
@@ -237,55 +245,6 @@ func (db *DB) GetVaultByAddress(address string) (*models.VaultState, error) {
 	return &vault, nil
 }
 
-func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, error) {
-	var or models.OptionRound
-	if err := db.tx.First(&or).Where("address = ?", address).Error; err != nil {
-		return nil, err
-	}
-	return &or, nil
-}
-
-func (db *DB) GetAllQueuedLiquidityForRound(roundAddress string) ([]models.QueuedLiquidity, error) {
-
-	var queuedAmounts []models.QueuedLiquidity
-	if err := db.Conn.Where("roundAddress=?", roundAddress).Find(&queuedAmounts).Error; err != nil {
-		return nil, err
-	}
-	return queuedAmounts, nil
-}
-
-func (db *DB) GetBidsForRound(roundAddress string) ([]models.Bid, error) {
-	var bids []models.Bid
-	if err := db.Conn.Where("round_address = ?", roundAddress).Order("price DESC").
-		Order("tree_nonce ASC").Find(&bids).Error; err != nil {
-		return nil, err
-	}
-	return bids, nil
-}
-
-func (db *DB) GetBidsAboveClearingForRound(roundAddress string, clearingPrice, clearingNonce models.BigInt) ([]models.Bid, error) {
-	var bids []models.Bid
-	if err := db.Conn.Where("round_address = ?", roundAddress).
-		Where("price > ? OR (price = ? AND tree_nonce >= ?)", clearingPrice, clearingPrice, clearingNonce).
-		Order("price DESC").
-		Order("tree_nonce ASC").
-		Find(&bids).Error; err != nil {
-		return nil, err
-	}
-	return bids, nil
-}
-
-func (db *DB) GetBidsBelowClearingForRound(roundAddress string, clearingPrice, clearingNonce models.BigInt) ([]models.Bid, error) {
-	var bids []models.Bid
-	if err := db.Conn.Where("round_address = ?", roundAddress).
-		Where("NOT(price > ? OR (price = ? AND tree_nonce >= ?))", clearingPrice, clearingPrice, clearingNonce).
-		Order("price DESC").
-		Order("tree_nonce ASC").
-		Find(&bids).Error; err != nil {
-		return nil, err
-	}
-	return bids, nil
-}
 func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, blockNumber uint64) error {
 	// Log the input for debugging
 	// Log the input for debugging
@@ -312,11 +271,19 @@ func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, bl
 }
 
 func (db *DB) UpdateOptionBuyerFields(address string, roundAddress string, updates map[string]interface{}) error {
-	return db.tx.Model(models.OptionRound{}).Where("address = ? AND round_address = ?", address, roundAddress).Updates(updates).Error
+	return db.tx.Model(models.OptionBuyer{}).Where("address = ? AND round_address = ?", address, roundAddress).Updates(updates).Error
 }
 
 func (db *DB) UpdateAllOptionBuyerFields(roundAddress string, updates map[string]interface{}) error {
 	return db.tx.Model(models.OptionRound{}).Where("round_address=?", roundAddress).Updates(updates).Error
+}
+
+func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, error) {
+	var or models.OptionRound
+	if err := db.tx.First(&or).Where("address = ?", address).Error; err != nil {
+		return nil, err
+	}
+	return &or, nil
 }
 
 func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
@@ -352,19 +319,53 @@ func (db *DB) CreateOptionRound(round *models.OptionRound) error {
 	return nil
 }
 
-func (db *DB) CreateVault(vault *models.VaultState) error {
-	if err := db.tx.Create(vault).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
 // DeleteBid deletes a Bid record by its ID
 func (db *DB) DeleteBid(bidID string, roundAddress string) error {
 	if err := db.tx.Model(&models.Bid{}).Where("round_address=? AND bid_id=?", roundAddress, bidID).Error; err != nil {
 		return err
 	}
 	return nil
+}
+func (db *DB) GetBidsForRound(roundAddress string) ([]models.Bid, error) {
+	var bids []models.Bid
+	if err := db.Conn.Where("round_address = ?", roundAddress).Order("price DESC").
+		Order("tree_nonce ASC").Find(&bids).Error; err != nil {
+		return nil, err
+	}
+	return bids, nil
+}
+
+func (db *DB) GetBidsAboveClearingForRound(roundAddress string, clearingPrice models.BigInt, clearingNonce uint64) ([]models.Bid, error) {
+	var bids []models.Bid
+	if err := db.Conn.Where("round_address = ?", roundAddress).
+		Where("price > ? OR (price = ? AND tree_nonce >= ?)", clearingPrice, clearingPrice, clearingNonce).
+		Order("price DESC").
+		Order("tree_nonce ASC").
+		Find(&bids).Error; err != nil {
+		return nil, err
+	}
+	return bids, nil
+}
+
+func (db *DB) GetBidsBelowClearingForRound(roundAddress string, clearingPrice models.BigInt, clearingNonce uint64) ([]models.Bid, error) {
+	var bids []models.Bid
+	if err := db.Conn.Where("round_address = ?", roundAddress).
+		Where("NOT(price > ? OR (price = ? AND tree_nonce >= ?))", clearingPrice, clearingPrice, clearingNonce).
+		Order("price DESC").
+		Order("tree_nonce ASC").
+		Find(&bids).Error; err != nil {
+		return nil, err
+	}
+	return bids, nil
+}
+
+func (db *DB) GetAllQueuedLiquidityForRound(roundAddress string) ([]models.QueuedLiquidity, error) {
+
+	var queuedAmounts []models.QueuedLiquidity
+	if err := db.Conn.Where("roundAddress=?", roundAddress).Find(&queuedAmounts).Error; err != nil {
+		return nil, err
+	}
+	return queuedAmounts, nil
 }
 
 // Revert Functions
@@ -478,4 +479,18 @@ func (db *DB) RevertLPState(address string, blockNumber uint64) error {
 	}
 
 	return nil
+}
+
+func (db *DB) Begin() {
+	tx := db.Conn.Begin()
+	db.tx = tx
+}
+
+func (db *DB) Commit() {
+	db.tx.Commit()
+	db.tx = nil
+}
+
+func (db *DB) Tx(tx *gorm.DB) {
+	db.tx = tx
 }

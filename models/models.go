@@ -77,23 +77,22 @@ type OptionBuyer struct {
 
 type OptionRound struct {
 	VaultAddress      string `gorm:"column:vault_address;"`
-	Address           string `gorm:"column:address;not null"`
-	RoundID           BigInt `gorm:"column:round_id;not null"`
-	Bids              string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
+	Address           string `gorm:"column:address"`
+	RoundID           BigInt `gorm:"column:round_id;"` // Store bids as JSON in PostgreSQL
 	CapLevel          BigInt `gorm:"column:cap_level"`
-	StartingBlock     uint64 `gorm:"column:starting_block;not null"`
-	EndingBlock       uint64 `gorm:"column:ending_block;not null"`
-	SettlementDate    uint64 `gorm:"column:settlement_date;not null"`
-	StartingLiquidity BigInt `gorm:"column:starting_liquidity;not null"`
-	QueuedLiquidity   BigInt `gorm:"column:queued_liquidity;not null"`
-	AvailableOptions  BigInt `gorm:"column:available_options;not null"`
-	SettlementPrice   BigInt `gorm:"column:settlement_price;not null"`
-	StrikePrice       BigInt `gorm:"column:strike_price;not null"`
-	SoldOptions       BigInt `gorm:"column:sold_options;not null"`
+	StartDate         uint64 `gorm:"column:start_date;"`
+	EndDate           uint64 `gorm:"column:end_date;"`
+	SettlementDate    uint64 `gorm:"column:settlement_date;"`
+	StartingLiquidity BigInt `gorm:"column:starting_liquidity;"`
+	QueuedLiquidity   BigInt `gorm:"column:queued_liquidity;"`
+	AvailableOptions  BigInt `gorm:"column:available_options;"`
+	SettlementPrice   BigInt `gorm:"column:settlement_price;"`
+	StrikePrice       BigInt `gorm:"column:strike_price;"`
+	SoldOptions       BigInt `gorm:"column:sold_options;"`
 	ReservePrice      BigInt `gorm:"column:reserve_price"`
 	ClearingPrice     BigInt `gorm:"column:clearing_price"`
-	State             string `gorm:"column:state;not null"`
-	Premiums          BigInt `gorm:"column:premiums;not null"`
+	State             string `gorm:"column:state;"`
+	Premiums          BigInt `gorm:"column:premiums;"`
 	PayoutPerOption   BigInt `gorm:"column:payout_per_option;"`
 }
 
