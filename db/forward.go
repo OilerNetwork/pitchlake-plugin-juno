@@ -42,7 +42,8 @@ func (dbc *DB) AuctionStartedIndex(vaultAddress, roundAddress string, blockNumbe
 	dbc.UpdateVaultBalanceAuctionStart(vaultAddress, blockNumber)
 }
 
-func (dbc *DB) AuctionEndedIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber, clearingNonce uint64, optionsSold, clearingPrice, premiums, unsoldData models.BigInt) {
+func (dbc *DB) AuctionEndedIndex(
+	prevStateOptionRound models.OptionRound, roundAddress string, blockNumber, clearingNonce uint64, optionsSold, clearingPrice, premiums, unsoldData models.BigInt) {
 	unsoldLiquidity := models.BigInt{Int: new(big.Int).Sub(
 		prevStateOptionRound.StartingLiquidity.Int,
 		new(big.Int).Div(
