@@ -2,6 +2,7 @@ package adaptors
 
 import (
 	"junoplugin/models"
+	"log"
 	"math/big"
 
 	"github.com/NethermindEth/juno/core"
@@ -10,31 +11,38 @@ import (
 type JunoAdaptor struct {
 }
 
+func (p *JunoAdaptor) PricingDataSet(event core.Event) (models.BigInt, models.BigInt, models.BigInt) {
+	strikePrice := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
+	capLevel := FeltToBigInt(event.Data[2].Bytes())
+	reservePrice := CombineFeltToBigInt(event.Data[4].Bytes(), event.Data[3].Bytes())
+	return strikePrice, capLevel, reservePrice
+}
 func (p *JunoAdaptor) DepositOrWithdraw(event core.Event) (string, models.BigInt, models.BigInt) {
 	lpAddress := FeltToHexString(event.Keys[0].Bytes())
-	lpUnlocked := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[3].Bytes())
-	vaultUnlocked := CombineFeltToBigInt(event.Data[4].Bytes(), event.Data[5].Bytes())
+	lpUnlocked := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
+	vaultUnlocked := CombineFeltToBigInt(event.Data[5].Bytes(), event.Data[4].Bytes())
 	return lpAddress, lpUnlocked, vaultUnlocked
 }
 
 func (p *JunoAdaptor) RoundDeployed(event core.Event) models.OptionRound {
 
+	log.Printf("event %v", event)
 	vaultAddress :=
 		event.From.String()
-	roundId := CombineFeltToBigInt(event.Data[0].Bytes(), event.Data[1].Bytes())
-	roundAddress := FeltToHexString(event.Data[2].Bytes())
-	startingBlock := event.Data[3].Uint64()
-	endingBlock := event.Data[4].Uint64()
-	settlementDate := event.Data[5].Uint64()
-	strikePrice := CombineFeltToBigInt(event.Data[6].Bytes(), event.Data[7].Bytes())
-	capLevel := FeltToBigInt(event.Data[8].Bytes())
-	reservePrice := CombineFeltToBigInt(event.Data[9].Bytes(), event.Data[10].Bytes())
+	roundId := FeltToBigInt(event.Data[0].Bytes())
+	roundAddress := FeltToHexString(event.Data[1].Bytes())
+	startingBlock := event.Data[2].Uint64()
+	endingBlock := event.Data[3].Uint64()
+	settlementDate := event.Data[4].Uint64()
+	strikePrice := CombineFeltToBigInt(event.Data[6].Bytes(), event.Data[5].Bytes())
+	capLevel := FeltToBigInt(event.Data[7].Bytes())
+	reservePrice := CombineFeltToBigInt(event.Data[9].Bytes(), event.Data[8].Bytes())
 	optionRound := models.OptionRound{
 		RoundID:        roundId,
 		Address:        roundAddress,
 		VaultAddress:   vaultAddress,
-		StartingBlock:  startingBlock,
-		EndingBlock:    endingBlock,
+		StartDate:      startingBlock,
+		EndDate:        endingBlock,
 		SettlementDate: settlementDate,
 		StrikePrice:    strikePrice,
 		CapLevel:       capLevel,
@@ -47,23 +55,24 @@ func (p *JunoAdaptor) RoundDeployed(event core.Event) models.OptionRound {
 
 func (p *JunoAdaptor) AuctionStarted(event core.Event) (models.BigInt, models.BigInt) {
 
-	availableOptions := CombineFeltToBigInt(event.Data[0].Bytes(), event.Data[1].Bytes())
-	startingLiquidity := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[3].Bytes())
+	startingLiquidity := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
+	availableOptions := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
 	return availableOptions, startingLiquidity
 }
 
-func (p *JunoAdaptor) AuctionEnded(event core.Event) (models.BigInt, models.BigInt, models.BigInt, models.BigInt) {
+func (p *JunoAdaptor) AuctionEnded(event core.Event) (models.BigInt, models.BigInt, models.BigInt, uint64, models.BigInt) {
 	optionsSold := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
 	clearingPrice := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
-	clearingNonce := CombineFeltToBigInt(event.Data[5].Bytes(), event.Data[4].Bytes())
+	unsoldLiquidity := CombineFeltToBigInt(event.Data[5].Bytes(), event.Data[4].Bytes())
+	clearingNonce := event.Data[6].Uint64()
 	premiums := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, clearingPrice.Int)}
 
-	return optionsSold, clearingPrice, clearingNonce, premiums
+	return optionsSold, clearingPrice, unsoldLiquidity, clearingNonce, premiums
 }
 
 func (p *JunoAdaptor) RoundSettled(event core.Event) (models.BigInt, models.BigInt) {
-	totalPayout := CombineFeltToBigInt(event.Data[0].Bytes(), event.Data[1].Bytes())
-	settlementPrice := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[3].Bytes())
+	totalPayout := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
+	settlementPrice := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
 	return totalPayout, settlementPrice
 }
 
@@ -84,7 +93,7 @@ func (p *JunoAdaptor) BidAccepted(event core.Event) models.Bid {
 
 func (p *JunoAdaptor) BidUpdated(event core.Event) (string, models.BigInt, uint64, uint64) {
 	bidId := event.Data[0].String()
-	amount := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[2].Bytes())
+	amount := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[1].Bytes())
 	treeNonceOld := event.Data[3].Uint64()
 	treeNonceNew := event.Data[4].Uint64()
 	return bidId, amount, treeNonceOld, treeNonceNew

@@ -4,8 +4,6 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"math/big"
-
-	"gorm.io/gorm"
 )
 
 type BigInt struct {
@@ -52,7 +50,6 @@ func (b BigInt) Value() (driver.Value, error) {
 }
 
 type Vault struct {
-	gorm.Model             // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
 	BlockNumber     uint64 `gorm:"column:block_number;type:numeric(78,0);not null"`
 	UnlockedBalance BigInt `gorm:"column:unlocked_balance;not null"`
 	LockedBalance   BigInt `gorm:"column:locked_balance;not null"`
@@ -60,7 +57,6 @@ type Vault struct {
 }
 
 type LiquidityProvider struct {
-	gorm.Model             // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
 	Address         string `gorm:"column:address;not null"`
 	UnlockedBalance BigInt `gorm:"column:unlocked_balance;not null"`
 	LockedBalance   BigInt `gorm:"column:locked_balance;not null"`
@@ -69,8 +65,7 @@ type LiquidityProvider struct {
 }
 
 type OptionBuyer struct {
-	gorm.Model        // Adds ID, CreatedAt, UpdatedAt, DeletedAt fields
-	Address    string `gorm:"column:address;not null"`
+	Address string `gorm:"column:address;not null"`
 	//Maybe this is not required and can be directly fetched as a view/index on the bids table
 	//Bids       string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
 	RoundAddress     string `gorm:"column:round_id;not null"`
@@ -81,58 +76,51 @@ type OptionBuyer struct {
 }
 
 type OptionRound struct {
-	gorm.Model
 	VaultAddress      string `gorm:"column:vault_address;"`
-	Address           string `gorm:"column:address;not null"`
-	RoundID           BigInt `gorm:"column:round_id;not null"`
-	Bids              string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
+	Address           string `gorm:"column:address"`
+	RoundID           BigInt `gorm:"column:round_id;"` // Store bids as JSON in PostgreSQL
 	CapLevel          BigInt `gorm:"column:cap_level"`
-	StartingBlock     uint64 `gorm:"column:starting_block;not null"`
-	EndingBlock       uint64 `gorm:"column:ending_block;not null"`
-	SettlementDate    uint64 `gorm:"column:settlement_date;not null"`
-	StartingLiquidity BigInt `gorm:"column:starting_liquidity;not null"`
-	QueuedLiquidity   BigInt `gorm:"column:queued_liquidity;not null"`
-	AvailableOptions  BigInt `gorm:"column:available_options;not null"`
-	SettlementPrice   BigInt `gorm:"column:settlement_price;not null"`
-	StrikePrice       BigInt `gorm:"column:strike_price;not null"`
-	SoldOptions       BigInt `gorm:"column:sold_options;not null"`
+	StartDate         uint64 `gorm:"column:start_date;"`
+	EndDate           uint64 `gorm:"column:end_date;"`
+	SettlementDate    uint64 `gorm:"column:settlement_date;"`
+	StartingLiquidity BigInt `gorm:"column:starting_liquidity;"`
+	QueuedLiquidity   BigInt `gorm:"column:queued_liquidity;"`
+	AvailableOptions  BigInt `gorm:"column:available_options;"`
+	SettlementPrice   BigInt `gorm:"column:settlement_price;"`
+	StrikePrice       BigInt `gorm:"column:strike_price;"`
+	SoldOptions       BigInt `gorm:"column:sold_options;"`
 	ReservePrice      BigInt `gorm:"column:reserve_price"`
 	ClearingPrice     BigInt `gorm:"column:clearing_price"`
-	State             string `gorm:"column:state;not null"`
-	Premiums          BigInt `gorm:"column:premiums;not null"`
+	State             string `gorm:"column:state;"`
+	Premiums          BigInt `gorm:"column:premiums;"`
 	PayoutPerOption   BigInt `gorm:"column:payout_per_option;"`
 }
 
 type VaultState struct {
-	gorm.Model
 	CurrentRound        BigInt `gorm:"column:current_round;not null"`
-	CurrentRoundAddress string `gorm:"column:current_round_address;not null"`
-	UnlockedBalance     BigInt `gorm:"column:unlocked_balance;not null"`
-	LockedBalance       BigInt `gorm:"column:locked_balance;not null"`
-	StashedBalance      BigInt `gorm:"column:stashed_balance;not null"`
+	CurrentRoundAddress string `gorm:"column:current_round_address;"`
+	UnlockedBalance     BigInt `gorm:"column:unlocked_balance;"`
+	LockedBalance       BigInt `gorm:"column:locked_balance;"`
+	StashedBalance      BigInt `gorm:"column:stashed_balance;"`
 	Address             string `gorm:"column:address;not null"`
 	LatestBlock         uint64 `gorm:"column:latest_block;"`
 }
 
 type LiquidityProviderState struct {
-	gorm.Model
 	Address         string `gorm:"column:address;not null;primaryKey"`
 	UnlockedBalance BigInt `gorm:"column:unlocked_balance;not null"`
 	LockedBalance   BigInt `gorm:"column:locked_balance;not null"`
 	StashedBalance  BigInt `gorm:"column:stashed_balance;"`
-	QueuedBalance   BigInt `gorm:"column:queued_balance;"`
 	LatestBlock     uint64 `gorm:"column:latest_block;"`
 }
 
 type QueuedLiquidity struct {
-	gorm.Model
 	Address        string `gorm:"column:address;not null"`
 	RoundAddress   BigInt `gorm:"column:round_address;not null"`
 	StartingAmount BigInt `gorm:"column:starting_amount;not null"`
 	QueuedAmount   BigInt `gorm:"column:amount;not null"`
 }
 type Bid struct {
-	gorm.Model
 	BuyerAddress string `gorm:"column:buyer_address;not null"`
 	RoundAddress string `gorm:"column:round_address;not null"`
 	BidID        string `gorm:"column:bid_id;not null"`

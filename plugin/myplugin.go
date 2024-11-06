@@ -35,7 +35,9 @@ var _ junoplugin.JunoPlugin = (*pitchlakePlugin)(nil)
 
 func (p *pitchlakePlugin) Init() error {
 	dbUrl := os.Getenv("DB_URL")
-	p.udcAddress = os.Getenv("UDC")
+	udcAddress := os.Getenv("UDC_ADDRESS")
+	p.udcAddress = udcAddress
+	p.roundAddresses = make([]string, 0)
 	dbClient, err := db.Init(dbUrl)
 	if err != nil {
 		log.Fatalf("Failed to initialise db: %v", err)
@@ -45,6 +47,8 @@ func (p *pitchlakePlugin) Init() error {
 	p.db = dbClient
 	p.vaultHash = os.Getenv("VAULT_HASH")
 	p.log = log.Default()
+
+	p.log.Println("STARTED, UDC %v %v %v", p.udcAddress, dbUrl, udcAddress)
 	//Add function to catch up on vaults/rounds that are not synced to currentBlock
 	return nil
 }
@@ -60,11 +64,15 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 	p.db.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {
-		for _, event := range receipt.Events {
+		for i, event := range receipt.Events {
 			fromAddress := event.From.String()
-			log.Printf("EVENT.FROM %s", event.From.String())
+
+			if block.Number == 285211 || block.Number == 285214 {
+				log.Printf("FROM:", fromAddress)
+			}
 			if fromAddress == p.udcAddress {
-				p.processUDC(event)
+				log.Printf("UDC", event.From.String())
+				p.processUDC(receipt.Events, event, i, block.Number)
 			} else if fromAddress == p.vaultAddress {
 				p.processVaultEvent(fromAddress, event, block.Number)
 			} else {
@@ -105,16 +113,37 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 	return nil
 }
 
-func (p *pitchlakePlugin) processUDC(event *core.Event) error {
+func (p *pitchlakePlugin) processUDC(events []*core.Event, event *core.Event, index int, blockNumber uint64) error {
 	eventHash := adaptors.Keccak256("ContractDeployed")
 	address := adaptors.FeltToHexString(event.Data[0].Bytes())
 	classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
+	vaultAddress := os.Getenv("VAULT_ADDRESS")
+	log.Printf("address", address, p.vaultAddress)
+	if address == vaultAddress {
+		log.Printf("MATCHED")
+		p.vaultAddress = address
+		vault := models.VaultState{
+			CurrentRound:    *models.NewBigInt("1"),
+			UnlockedBalance: *models.NewBigInt("0"),
+			LockedBalance:   *models.NewBigInt("0"),
+			StashedBalance:  *models.NewBigInt("0"),
+			Address:         address,
+			LatestBlock:     blockNumber,
+		}
+		if err := p.db.CreateVault(&vault); err != nil {
+			log.Fatal(err)
+			return err
+		}
+		log.Printf("index %v", index)
+		p.processVaultEvent(vaultAddress, events[index-1], blockNumber)
 
+	}
 	if eventHash == event.Keys[0].String() {
 
 		if classHash == p.vaultHash {
-			p.vaultAddress = address
+
 		}
+
 	}
 	return nil
 }
@@ -125,6 +154,7 @@ func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Eve
 		log.Fatalf("Failed to decode event: %v", err)
 		return err
 	}
+	log.Printf("NAME %v", eventName)
 	switch eventName {
 	case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
 		lpAddress, lpUnlocked, vaultUnlocked := p.junoAdaptor.DepositOrWithdraw(*event)
@@ -136,30 +166,44 @@ func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Eve
 
 		optionRound := p.junoAdaptor.RoundDeployed(*event)
 
+		log.Printf("ROUND %v", optionRound)
 		p.db.RoundDeployedIndex(optionRound)
 		p.roundAddresses = append(p.roundAddresses, optionRound.Address)
+		log.Printf("ROUND ADDRESSES %v", p.roundAddresses)
 	}
 	return nil
 }
 
 func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Event, blockNumber uint64) error {
 	var err error
+	log.Printf("ROUNDEVENT")
 	p.prevStateOptionRound, err = p.db.GetOptionRoundByAddress(roundAddress)
 	if err != nil {
 		return err
 	}
+	log.Printf("HERE")
 	eventName, err := adaptors.DecodeEventNameRound(event.Keys[0].String())
 	if err != nil {
 		log.Fatalf("Failed to decode event: %v", err)
 		return err
 	}
+	log.Printf("EVENTNAME: ", eventName)
 	switch eventName {
+	case "PricingDataSet":
+		log.Printf("event %v", event)
+		strikePrice, capLevel, reservePrice := p.junoAdaptor.PricingDataSet(*event)
+		log.Printf("FOUND %v %v %v", strikePrice, capLevel, reservePrice)
+		err := p.db.PricingDataSetIndex(roundAddress, strikePrice, capLevel, reservePrice)
+		if err != nil {
+			return err
+		}
 	case "AuctionStarted":
 		availableOptions, startingLiquidity := p.junoAdaptor.AuctionStarted(*event)
-		p.db.AuctionStartedIndex(roundAddress, blockNumber, availableOptions, startingLiquidity)
+		p.db.AuctionStartedIndex(p.prevStateOptionRound.VaultAddress, roundAddress, blockNumber, availableOptions, startingLiquidity)
 	case "AuctionEnded":
-		optionsSold, clearingPrice, clearingNonce, premiums := p.junoAdaptor.AuctionEnded(*event)
-		p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, blockNumber, optionsSold, clearingPrice, clearingNonce, premiums)
+		optionsSold, clearingPrice, unsoldLiquidity, clearingNonce, premiums := p.junoAdaptor.AuctionEnded(*event)
+		log.Printf("HERE'S THE DATA %v %v %v %v", optionsSold, clearingPrice, unsoldLiquidity, clearingNonce, premiums)
+		p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, blockNumber, clearingNonce, optionsSold, clearingPrice, premiums, unsoldLiquidity)
 	case "OptionRoundSettled":
 		totalPayout, settlementPrice := p.junoAdaptor.RoundSettled(*event)
 		p.db.RoundSettledIndex(*p.prevStateOptionRound, roundAddress, blockNumber, totalPayout, settlementPrice)
