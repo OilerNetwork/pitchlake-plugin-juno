@@ -28,7 +28,7 @@ FROM ubuntu:24.10
 
 # Install necessary runtime dependencies
 RUN apt-get -qq update && \
-    apt-get -qq install libjemalloc2 -y && \
+    apt-get -qq install libjemalloc2 curl -y && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
