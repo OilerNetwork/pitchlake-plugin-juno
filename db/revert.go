@@ -38,7 +38,7 @@ func (db *DB) AuctionEndedRevert(vaultAddress, roundAddress string, blockNumber 
 	})
 	db.UpdateAllOptionBuyerFields(roundAddress, map[string]interface{}{
 		"tokenizable_options": 0,
-		"refundable_amount":   0,
+		"refundable_options":  0,
 	})
 }
 

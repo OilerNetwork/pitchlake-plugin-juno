@@ -87,12 +87,12 @@ ALTER TABLE IF EXISTS "VaultStates"
 CREATE TABLE "Option_Buyers"
 (
     address character varying COLLATE pg_catalog."default" NOT NULL,
-    round_id numeric(78,0) NOT NULL,
+    round_address character varying COLLATE pg_catalog."default" NOT NULL,
     has_minted boolean NOT NULL DEFAULT false,
     has_refunded boolean NOT NULL DEFAULT false,
     mintable_options numeric(78,0),
     refundable_options numeric(78,0),
-    CONSTRAINT buyer_round PRIMARY KEY (address, round_id)
+    CONSTRAINT buyer_round PRIMARY KEY (address, round_address)
 );
 
 

@@ -24,6 +24,24 @@ func (p *JunoAdaptor) DepositOrWithdraw(event core.Event) (string, models.BigInt
 	return lpAddress, lpUnlocked, vaultUnlocked
 }
 
+func (p *JunoAdaptor) WithdrawalQueued(event core.Event) (string, models.BigInt, uint64, models.BigInt, models.BigInt, models.BigInt) {
+	lpAddress := FeltToHexString(event.Keys[0].Bytes())
+	bps := FeltToBigInt(event.Data[0].Bytes())
+	roundId := event.Data[1].Uint64()
+	accountQueuedBefore := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
+	accountQueuedNow := CombineFeltToBigInt(event.Data[5].Bytes(), event.Data[4].Bytes())
+	vaultQueuedNow := CombineFeltToBigInt(event.Data[7].Bytes(), event.Data[6].Bytes())
+
+	return lpAddress, bps, roundId, accountQueuedBefore, accountQueuedNow, vaultQueuedNow
+}
+
+func (p *JunoAdaptor) StashWithdrawn(event core.Event) (string, models.BigInt, models.BigInt) {
+	lpAddress := FeltToHexString(event.Keys[0].Bytes())
+	amount := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
+	vaultStashed := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
+	return lpAddress, amount, vaultStashed
+}
+
 func (p *JunoAdaptor) RoundDeployed(event core.Event) models.OptionRound {
 
 	log.Printf("event %v", event)
@@ -71,24 +89,31 @@ func (p *JunoAdaptor) AuctionEnded(event core.Event) (models.BigInt, models.BigI
 }
 
 func (p *JunoAdaptor) RoundSettled(event core.Event) (models.BigInt, models.BigInt) {
-	totalPayout := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
-	settlementPrice := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
-	return totalPayout, settlementPrice
+	settlementPrice := CombineFeltToBigInt(event.Data[1].Bytes(), event.Data[0].Bytes())
+	payoutPerOption := CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
+	return settlementPrice, payoutPerOption
 }
 
-func (p *JunoAdaptor) BidAccepted(event core.Event) models.Bid {
+func (p *JunoAdaptor) BidPlaced(event core.Event) (models.Bid, models.OptionBuyer) {
 	bidAmount := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[1].Bytes())
 	bidPrice := CombineFeltToBigInt(event.Data[4].Bytes(), event.Data[3].Bytes())
 	treeNonce := event.Data[5].Uint64()
 
-	var bid models.Bid
-	bid.BuyerAddress = event.Keys[0].String()
-	bid.BidID = event.Data[0].String()
-	bid.RoundAddress = event.From.String()
-	bid.Amount = bidAmount
-	bid.Price = bidPrice
-	bid.TreeNonce = treeNonce
-	return bid
+	bid := models.Bid{
+		BuyerAddress: event.Keys[0].String(),
+		BidID:        event.Data[0].String(),
+		RoundAddress: event.From.String(),
+		Amount:       bidAmount,
+		Price:        bidPrice,
+		TreeNonce:    treeNonce,
+	}
+
+	buyer := models.OptionBuyer{
+		Address:      event.Keys[0].String(),
+		RoundAddress: event.From.String(),
+	}
+
+	return bid, buyer
 }
 
 func (p *JunoAdaptor) BidUpdated(event core.Event) (string, models.BigInt, uint64, uint64) {

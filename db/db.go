@@ -94,6 +94,7 @@ func (db *DB) UpdateVaultBalanceAuctionStart(vaultAddress string, blockNumber ui
 }
 
 func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
+	vaultAddress string,
 	startingLiquidity,
 	unsoldLiquidity,
 	premiums models.BigInt,
@@ -152,8 +153,8 @@ func (db *DB) UpdateBiddersAuctionEnd(
 		if true {
 			refundableAmount := &models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Amount.Int, clearingOptionsSold.Int), clearingPrice.Int)}
 			err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
-				"refundable_amount": gorm.Expr("refundable_amount+?", refundableAmount),
-				"mintable_options":  gorm.Expr("mintable_options+?", clearingOptionsSold),
+				"refundable_options": gorm.Expr("refundable_options+?", refundableAmount),
+				"mintable_options":   gorm.Expr("mintable_options+?", clearingOptionsSold),
 			})
 			if err != nil {
 				return err
@@ -176,7 +177,7 @@ func (db *DB) UpdateBiddersAuctionEnd(
 	}
 	for _, bid := range bidsBelow {
 		err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
-			"refundable_amount": gorm.Expr("mintable_options+?", bid.Amount),
+			"refundable_options": gorm.Expr("mintable_options+?", bid.Amount),
 		})
 		if err != nil {
 			return err
@@ -185,9 +186,9 @@ func (db *DB) UpdateBiddersAuctionEnd(
 	return nil
 }
 
-func (db *DB) UpdateVaultBalancesOptionSettle(remainingLiquidty, remainingLiquidityStashed models.BigInt, blockNumber uint64) error {
+func (db *DB) UpdateVaultBalancesOptionSettle(vaultAddress string, remainingLiquidty, remainingLiquidityStashed models.BigInt, blockNumber uint64) error {
 	difference := models.BigInt{Int: new(big.Int).Sub(remainingLiquidty.Int, remainingLiquidityStashed.Int)}
-	return db.tx.Model(models.VaultState{}).Updates(map[string]interface{}{
+	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(map[string]interface{}{
 
 		"stashed_balance":  gorm.Expr("stashed_balance+ ? ", remainingLiquidityStashed),
 		"unlocked_balance": gorm.Expr("unlocked_balance+?", difference),
@@ -196,11 +197,11 @@ func (db *DB) UpdateVaultBalancesOptionSettle(remainingLiquidty, remainingLiquid
 	}).Error
 
 }
-func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundAddress string, startingLiquidity, remainingLiquidty, totalPayout, blockNumber models.BigInt) error {
+func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundAddress string, startingLiquidity, remainingLiquidty, payoutPerOption, optionsSold, blockNumber models.BigInt) error {
 
-	db.tx.Model(models.LiquidityProviderState{}).Updates(map[string]interface{}{
+	db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(map[string]interface{}{
 		"locked_balance":   0,
-		"unlocked_balance": gorm.Expr("unlocked_balance + locked_balance - locked_balance*?/?", totalPayout, startingLiquidity),
+		"unlocked_balance": gorm.Expr("unlocked_balance + locked_balance - locked_balance*?*?/?", payoutPerOption, optionsSold, startingLiquidity),
 		"latest_block":     blockNumber,
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundAddress)
@@ -245,6 +246,33 @@ func (db *DB) GetVaultByAddress(address string) (*models.VaultState, error) {
 	return &vault, nil
 }
 
+func (db *DB) CreateOptionBuyer(buyer *models.OptionBuyer) error {
+	err := db.tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "address"}, {Name: "round_address"}}, // Composite primary key columns
+		DoNothing: true,                                                        // Do nothing if a conflict occurs
+	}).Create(buyer).Error
+	return err
+}
+
+func (db *DB) UpsertQueuedLiquidity(queuedLiquidity *models.QueuedLiquidity) error {
+	// Log the input for debugging
+	// Log the input for debugging
+
+	// Perform upsert using GORM's Clauses with the transaction object
+	err := db.tx.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "address"}, {Name: "round_address"}},
+		DoUpdates: clause.AssignmentColumns([]string{"bps", "queued_liquidity"}),
+	}).Create(queuedLiquidity).Error
+
+	if err != nil {
+		log.Printf("Upsert error: %v", err)
+		return err
+	}
+
+	return nil
+
+}
+
 func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, blockNumber uint64) error {
 	// Log the input for debugging
 	// Log the input for debugging
@@ -254,12 +282,7 @@ func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, bl
 	err := db.tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "address"}},
 		DoUpdates: clause.AssignmentColumns([]string{"unlocked_balance", "locked_balance", "latest_block"}),
-	}).Create(&models.LiquidityProviderState{
-		Address:         lp.Address,
-		UnlockedBalance: lp.UnlockedBalance,
-		LockedBalance:   lp.LockedBalance,
-		LatestBlock:     blockNumber,
-	}).Error
+	}).Create(lp).Error
 
 	if err != nil {
 		log.Printf("Upsert error: %v", err)
@@ -362,7 +385,7 @@ func (db *DB) GetBidsBelowClearingForRound(roundAddress string, clearingPrice mo
 func (db *DB) GetAllQueuedLiquidityForRound(roundAddress string) ([]models.QueuedLiquidity, error) {
 
 	var queuedAmounts []models.QueuedLiquidity
-	if err := db.Conn.Where("roundAddress=?", roundAddress).Find(&queuedAmounts).Error; err != nil {
+	if err := db.Conn.Where("round_address=?", roundAddress).Find(&queuedAmounts).Error; err != nil {
 		return nil, err
 	}
 	return queuedAmounts, nil

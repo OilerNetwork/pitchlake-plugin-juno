@@ -14,7 +14,7 @@ COPY . .
 RUN git clone https://github.com/NethermindEth/juno.git &&\
     cd juno && \
     git checkout pitchlake/plugin-sequencer 
-RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make clean && make juno'
+RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
 
 RUN pwd
 RUN ls
@@ -31,7 +31,7 @@ RUN apt-get -qq update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
+ENV L1_URL=${L1_URL}
 # Copy the Juno binary and the plugin from the build stage
 COPY --from=build /plugin/db/migrations ./db/migrations
 COPY --from=build /plugin/juno/build/juno ./build/
@@ -39,5 +39,6 @@ COPY --from=build /plugin/myplugin.so ./
 COPY --from=build /plugin/juno/genesis ./genesis
 COPY .env ./
 
+
 # Run Juno with the plugin
-CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --network sepolia --rpc-cors-enable --eth-node wss://eth-sepolia.g.alchemy.com/v2/wrZTn4qzJEx10PMampkqvHHUSDQPi6Ju --db-path=/snapshots/"]
+CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --network sepolia --rpc-cors-enable --eth-node ${L1_URL} --db-path=/snapshots/"]

@@ -61,19 +61,20 @@ var vaultEventNames = []string{
 	"Deposit",
 	"Withdrawal",
 	"WithdrawalQueued",
-	"QueuedLiquidityCollected",
+	"StashWithdrawn",
 	"OptionRoundDeployed",
+	"L1RequestFulfilled",
 }
 var roundEventNames = []string{
+	"PricingDataSet",
 	"AuctionStarted",
+	"BidPlaced",
+	"BidUpdated",
 	"AuctionEnded",
 	"OptionRoundSettled",
-	"BidAccepted",
-	"BidUpdated",
+	"OptionsExercised",
 	"OptionsMinted",
 	"UnusedBidsRefunded",
-	"OptionsExercised",
-	"PricingDataSet",
 }
 
 // keccak256 function to hash the event name
