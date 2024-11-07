@@ -211,7 +211,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundAddress strin
 	for _, queuedAmount := range queuedAmounts {
 
 		amountToAdd := &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidty.Int, queuedAmount.QueuedAmount.Int), startingLiquidity.Int)}
-		db.tx.Model(models.LiquidityProviderState{}).Where("address = ? AND round_address = ", queuedAmount.Address, roundAddress).
+		db.tx.Model(models.LiquidityProviderState{}).Where("address = ?", queuedAmount.Address).
 			Updates(map[string]interface{}{
 				"stashed_balance":  gorm.Expr("stashed_balance + ?", amountToAdd),
 				"unlocked_balance": gorm.Expr("unlocked_balance - ?", amountToAdd),

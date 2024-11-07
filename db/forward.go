@@ -126,11 +126,11 @@ func (dbc *DB) AuctionStartedIndex(
 	return nil
 }
 
-func (dbc *DB) AuctionEndedIndex(
+func (db *DB) AuctionEndedIndex(
 	prevStateOptionRound models.OptionRound,
 	roundAddress string,
 	blockNumber, clearingNonce uint64,
-	optionsSold, clearingPrice, premiums, unsoldData models.BigInt) {
+	optionsSold, clearingPrice, premiums, unsoldData models.BigInt) error {
 	unsoldLiquidity := models.BigInt{Int: new(big.Int).Sub(
 		prevStateOptionRound.StartingLiquidity.Int,
 		new(big.Int).Div(
@@ -142,31 +142,85 @@ func (dbc *DB) AuctionEndedIndex(
 		),
 	)}
 	log.Printf("DATA %v %v %v ", unsoldLiquidity, unsoldData, optionsSold)
-	dbc.UpdateAllLiquidityProvidersBalancesAuctionEnd(prevStateOptionRound.VaultAddress, prevStateOptionRound.StartingLiquidity, unsoldLiquidity, premiums, blockNumber)
-	dbc.UpdateVaultBalancesAuctionEnd(prevStateOptionRound.VaultAddress, unsoldLiquidity, premiums, blockNumber)
-	dbc.UpdateBiddersAuctionEnd(roundAddress, clearingPrice, optionsSold, clearingNonce)
-	dbc.UpdateOptionRoundAuctionEnd(roundAddress, clearingPrice, optionsSold)
+	if err := db.UpdateAllLiquidityProvidersBalancesAuctionEnd(
+		prevStateOptionRound.VaultAddress,
+		prevStateOptionRound.StartingLiquidity,
+		unsoldLiquidity,
+		premiums,
+		blockNumber,
+	); err != nil {
+		return err
+	}
+	if err := db.UpdateVaultBalancesAuctionEnd(
+		prevStateOptionRound.VaultAddress,
+		unsoldLiquidity,
+		premiums,
+		blockNumber,
+	); err != nil {
+		return err
+	}
+	if err := db.UpdateBiddersAuctionEnd(
+		roundAddress,
+		clearingPrice,
+		optionsSold,
+		clearingNonce,
+	); err != nil {
+		return err
+	}
+	if err := db.UpdateOptionRoundAuctionEnd(
+		roundAddress,
+		clearingPrice,
+		optionsSold,
+	); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (dbc *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber uint64, settlementPrice, optionsSold, payoutPerOption models.BigInt) {
-	dbc.UpdateVaultBalancesOptionSettle(prevStateOptionRound.VaultAddress, prevStateOptionRound.StartingLiquidity, prevStateOptionRound.QueuedLiquidity, blockNumber)
-	dbc.UpdateAllLiquidityProvidersBalancesOptionSettle(roundAddress, prevStateOptionRound.StartingLiquidity, prevStateOptionRound.QueuedLiquidity, payoutPerOption, optionsSold, models.BigInt{Int: new(big.Int).SetUint64(blockNumber)})
-	dbc.UpdateOptionRoundFields(prevStateOptionRound.Address, map[string]interface{}{
+func (db *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber uint64, settlementPrice, optionsSold, payoutPerOption models.BigInt) error {
+	if err := db.UpdateVaultBalancesOptionSettle(
+		prevStateOptionRound.VaultAddress,
+		prevStateOptionRound.StartingLiquidity,
+		prevStateOptionRound.QueuedLiquidity,
+		blockNumber); err != nil {
+		return err
+	}
+	if err := db.UpdateAllLiquidityProvidersBalancesOptionSettle(
+		roundAddress,
+		prevStateOptionRound.StartingLiquidity,
+		prevStateOptionRound.QueuedLiquidity,
+		payoutPerOption,
+		optionsSold,
+		models.BigInt{Int: new(big.Int).SetUint64(blockNumber)}); err != nil {
+		return err
+	}
+	if err := db.UpdateOptionRoundFields(prevStateOptionRound.Address, map[string]interface{}{
 		"settlement_price":  settlementPrice,
 		"payout_per_option": payoutPerOption,
 		"state":             "Settled",
-	})
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (db *DB) BidPlacedIndex(bid models.Bid, buyer models.OptionBuyer) {
+func (db *DB) BidPlacedIndex(bid models.Bid, buyer models.OptionBuyer) error {
 	log.Printf("NEW BID %v", bid)
-	db.CreateOptionBuyer(&buyer)
-	db.CreateBid(&bid)
+	if err := db.CreateOptionBuyer(&buyer); err != nil {
+		return err
+	}
+	if err := db.CreateBid(&bid); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (dbc *DB) BidUpdatedIndex(bidId string, amount models.BigInt, treeNonce uint64) {
-	dbc.tx.Model(models.Bid{}).Where("bid_id = ?", bidId).Updates(map[string]interface{}{
+func (db *DB) BidUpdatedIndex(roundAddress, bidId string, amount models.BigInt, treeNonce uint64) error {
+	if err := db.tx.Model(models.Bid{}).Where("bid_id = ? AND round_address = ?", bidId, roundAddress).Updates(map[string]interface{}{
 		"amount":     gorm.Expr("amount + ?", amount),
 		"tree_nonce": treeNonce,
-	})
+	}).Error; err != nil {
+		return err
+	}
+	return nil
 }

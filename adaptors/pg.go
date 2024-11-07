@@ -97,13 +97,14 @@ func (p *JunoAdaptor) RoundSettled(event core.Event) (models.BigInt, models.BigI
 }
 
 func (p *JunoAdaptor) BidPlaced(event core.Event) (models.Bid, models.OptionBuyer) {
+	bidId := event.Data[0].String()
 	bidAmount := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[1].Bytes())
 	bidPrice := CombineFeltToBigInt(event.Data[4].Bytes(), event.Data[3].Bytes())
 	treeNonce := event.Data[5].Uint64()
 
 	bid := models.Bid{
 		BuyerAddress: FeltToHexString(event.Keys[1].Bytes()),
-		BidID:        event.Data[0].String(),
+		BidID:        bidId,
 		RoundAddress: event.From.String(),
 		Amount:       bidAmount,
 		Price:        bidPrice,
