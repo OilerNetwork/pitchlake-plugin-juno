@@ -42,8 +42,8 @@ ALTER TABLE "Option_Rounds"
 CREATE TABLE "Queued_Liquidity"
 (
     address character varying(67) COLLATE pg_catalog."default" NOT NULL,
-    starting_amount numeric(78,0) NOT NULL,
-    queued_amount numeric(78,0) NOT NULL,
+    queued_liquidity numeric(78,0) NOT NULL,
+    bps numeric(78,0) NOT NULL,
     round_address character varying(67) COLLATE pg_catalog."default" NOT NULL,
     CONSTRAINT lp_round_address PRIMARY KEY (address, round_address),
     CONSTRAINT lp_address FOREIGN KEY (address)

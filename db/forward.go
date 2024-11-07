@@ -46,6 +46,7 @@ func (db *DB) WithdrawalQueuedIndex(
 		Bps:          bps,
 		QueuedAmount: accountQueuedNow,
 	}
+	log.Printf("CHECK ME %v", queuedLiquidity)
 	if err := db.UpsertQueuedLiquidity(&queuedLiquidity); err != nil {
 		return err
 	}
@@ -108,14 +109,21 @@ func (dbc *DB) PricingDataSetIndex(
 func (dbc *DB) AuctionStartedIndex(
 	vaultAddress, roundAddress string,
 	blockNumber uint64,
-	availableOptions, startingLiquidity models.BigInt) {
-	dbc.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
+	availableOptions, startingLiquidity models.BigInt) error {
+	if err := dbc.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
 		"available_options":  availableOptions,
 		"starting_liquidity": startingLiquidity,
 		"state":              "Auctioning",
-	})
-	dbc.UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber)
-	dbc.UpdateVaultBalanceAuctionStart(vaultAddress, blockNumber)
+	}); err != nil {
+		return err
+	}
+	if err := dbc.UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber); err != nil {
+		return err
+	}
+	if err := dbc.UpdateVaultBalanceAuctionStart(vaultAddress, blockNumber); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (dbc *DB) AuctionEndedIndex(

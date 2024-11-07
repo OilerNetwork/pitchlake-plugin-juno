@@ -164,6 +164,7 @@ func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Eve
 
 	case "WithdrawalQueued":
 		lpAddress, bps, roundId, accountQueuedBefore, accountQueuedNow, vaultQueuedNow := p.junoAdaptor.WithdrawalQueued(*event)
+
 		err = p.db.WithdrawalQueuedIndex(lpAddress, vaultAddress, roundId, bps, accountQueuedBefore, accountQueuedNow, vaultQueuedNow)
 
 	case "StashWithdrawn":
@@ -216,6 +217,7 @@ func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Eve
 		p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, blockNumber, clearingNonce, optionsSold, clearingPrice, premiums, unsoldLiquidity)
 	case "OptionRoundSettled":
 		settlementPrice, payoutPerOption := p.junoAdaptor.RoundSettled(*event)
+		log.Printf("CHECK ME %v %v", p.prevStateOptionRound, roundAddress)
 		p.db.RoundSettledIndex(*p.prevStateOptionRound, roundAddress, blockNumber, payoutPerOption, p.prevStateOptionRound.SoldOptions, settlementPrice)
 	case "BidPlaced":
 		bid, buyer := p.junoAdaptor.BidPlaced(*event)
@@ -224,17 +226,17 @@ func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Eve
 		bidId, amount, _, treeNonceNew := p.junoAdaptor.BidUpdated(*event)
 		p.db.BidUpdatedIndex(bidId, amount, treeNonceNew)
 	case "OptionsMinted":
-		p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
+		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
 			"has_minted": true,
 		})
 	case "UnusedBidsRefunded":
 
-		p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
+		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
 			"has_refunded": true,
 		})
 	case "OptionsExercised":
 
-		p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
+		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
 			"has_minted": true,
 		})
 	case "Transfer":
@@ -251,9 +253,9 @@ func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Even
 	}
 	switch eventName {
 	case "Deposit", "Withdraw",
-		"QueuedLiquidityCollected": //Add withdraw queue
+		"StashWithdrawn": //Add withdraw queue
 
-		lpAddress := event.Keys[1].String()
+		lpAddress := event.FeltToHexString(event.Keys[1].Bytes())
 		p.db.DepositOrWithdrawRevert(vaultAddress, lpAddress, blockNumber)
 	case "OptionRoundDeployed":
 		roundAddress := adaptors.FeltToHexString(event.Data[2].Bytes())
@@ -288,16 +290,16 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 		bidId, amount, treeNonceOld, _ := p.junoAdaptor.BidUpdated(*event)
 		p.db.BidUpdatedRevert(bidId, amount, treeNonceOld)
 	case "OptionsMinted":
-		p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
+		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
 			"has_minted": false,
 		})
 	case "UnusedBidsRefunded":
-		p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
+		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
 			"has_refunded": false,
 		})
 	case "OptionsExercised":
 
-		p.db.UpdateOptionBuyerFields(event.Keys[0].String(), roundAddress, map[string]interface{}{
+		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
 			"has_minted": false,
 		})
 	case "Transfer":
