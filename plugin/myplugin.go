@@ -48,7 +48,7 @@ func (p *pitchlakePlugin) Init() error {
 	p.vaultHash = os.Getenv("VAULT_HASH")
 	p.log = log.Default()
 
-	p.log.Println("STARTED, UDC %v %v %v", p.udcAddress, dbUrl, udcAddress)
+	p.log.Printf("STARTED, UDC %v %v %v", p.udcAddress, dbUrl, udcAddress)
 	//Add function to catch up on vaults/rounds that are not synced to currentBlock
 	return nil
 }
@@ -159,17 +159,27 @@ func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Eve
 	case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
 		lpAddress, lpUnlocked, vaultUnlocked := p.junoAdaptor.DepositOrWithdraw(*event)
 
-		p.db.DepositOrWithdrawIndex(vaultAddress, lpAddress, lpUnlocked, vaultUnlocked, blockNumber)
+		err = p.db.DepositOrWithdrawIndex(vaultAddress, lpAddress, lpUnlocked, vaultUnlocked, blockNumber)
 		//Map the other parameters as well
 
+	case "WithdrawalQueued":
+		lpAddress, bps, roundId, accountQueuedBefore, accountQueuedNow, vaultQueuedNow := p.junoAdaptor.WithdrawalQueued(*event)
+		err = p.db.WithdrawalQueuedIndex(lpAddress, vaultAddress, roundId, bps, accountQueuedBefore, accountQueuedNow, vaultQueuedNow)
+
+	case "StashWithdrawn":
+		lpAddress, amount, vaultStashed := p.junoAdaptor.StashWithdrawn(*event)
+		err = p.db.StashWithdrawnIndex(vaultAddress, lpAddress, amount, vaultStashed, blockNumber)
 	case "OptionRoundDeployed":
 
 		optionRound := p.junoAdaptor.RoundDeployed(*event)
 
 		log.Printf("ROUND %v", optionRound)
-		p.db.RoundDeployedIndex(optionRound)
+		err = p.db.RoundDeployedIndex(optionRound)
 		p.roundAddresses = append(p.roundAddresses, optionRound.Address)
 		log.Printf("ROUND ADDRESSES %v", p.roundAddresses)
+	}
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -205,11 +215,11 @@ func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Eve
 		log.Printf("HERE'S THE DATA %v %v %v %v", optionsSold, clearingPrice, unsoldLiquidity, clearingNonce, premiums)
 		p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, blockNumber, clearingNonce, optionsSold, clearingPrice, premiums, unsoldLiquidity)
 	case "OptionRoundSettled":
-		totalPayout, settlementPrice := p.junoAdaptor.RoundSettled(*event)
-		p.db.RoundSettledIndex(*p.prevStateOptionRound, roundAddress, blockNumber, totalPayout, settlementPrice)
-	case "BidAccepted":
-		bid := p.junoAdaptor.BidAccepted(*event)
-		p.db.BidAcceptedIndex(bid)
+		settlementPrice, payoutPerOption := p.junoAdaptor.RoundSettled(*event)
+		p.db.RoundSettledIndex(*p.prevStateOptionRound, roundAddress, blockNumber, payoutPerOption, p.prevStateOptionRound.SoldOptions, settlementPrice)
+	case "BidPlaced":
+		bid, buyer := p.junoAdaptor.BidPlaced(*event)
+		p.db.BidPlacedIndex(bid, buyer)
 	case "BidUpdated":
 		bidId, amount, _, treeNonceNew := p.junoAdaptor.BidUpdated(*event)
 		p.db.BidUpdatedIndex(bidId, amount, treeNonceNew)
