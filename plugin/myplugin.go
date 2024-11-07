@@ -151,8 +151,8 @@ func (p *pitchlakePlugin) processUDC(events []*core.Event, event *core.Event, in
 func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Event, blockNumber uint64) error {
 	eventName, err := adaptors.DecodeEventNameVault(event.Keys[0].String())
 	if err != nil {
-		log.Fatalf("Failed to decode event: %v", err)
-		return err
+		log.Printf("Unknown Event")
+		return nil
 	}
 	log.Printf("NAME %v", eventName)
 	switch eventName {
@@ -184,8 +184,8 @@ func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Eve
 	log.Printf("HERE")
 	eventName, err := adaptors.DecodeEventNameRound(event.Keys[0].String())
 	if err != nil {
-		log.Fatalf("Failed to decode event: %v", err)
-		return err
+		log.Printf("Unknown Event")
+		return nil
 	}
 	log.Printf("EVENTNAME: ", eventName)
 	switch eventName {
