@@ -71,7 +71,7 @@ type OptionBuyer struct {
 	RoundAddress      string `gorm:"column:round_address;not null"`
 	MintableOptions   BigInt `gorm:"column:mintable_options;"`
 	HasMinted         bool   `gorm:"column:has_minted;"`
-	RefundableOptions BigInt `gorm:"column:refundable_options;"`
+	RefundableOptions BigInt `gorm:"column:refundable_amount;"`
 	HasRefunded       bool   `gorm:"column:has_refunded;"`
 }
 

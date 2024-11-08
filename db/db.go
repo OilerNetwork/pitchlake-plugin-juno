@@ -149,35 +149,41 @@ func (db *DB) UpdateBiddersAuctionEnd(
 		return err
 	}
 
+	optionsLeft := models.NewBigInt(clearingOptionsSold.String())
 	for _, bid := range bidsAbove {
-		if true {
-			refundableAmount := &models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Amount.Int, clearingOptionsSold.Int), clearingPrice.Int)}
+		if clearingNonce == bid.TreeNonce {
+			log.Printf("optionsLeft %v", optionsLeft)
+			refundableAmount := &models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Amount.Int, optionsLeft.Int), clearingPrice.Int)}
 			err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
-				"refundable_options": gorm.Expr("refundable_options+?", refundableAmount),
-				"mintable_options":   gorm.Expr("mintable_options+?", clearingOptionsSold),
+				"refundable_amount": gorm.Expr("refundable_amount+?", refundableAmount),
+				"mintable_options":  gorm.Expr("mintable_options+?", optionsLeft),
 			})
 			if err != nil {
 				return err
 			}
-			return nil
-		} else {
-			err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
-				"mintable_options": gorm.Expr("mintable_options+?", bid.Amount),
-			})
-			if err != nil {
-				return err
-			}
-			return nil
 
+		} else {
+			refundableAmount := &models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Price.Int, clearingPrice.Int), bid.Amount.Int)}
+			err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
+				"mintable_options":  gorm.Expr("mintable_options+?", bid.Amount),
+				"refundable_amount": gorm.Expr("refundable_amount+?", refundableAmount),
+			})
+			if err != nil {
+				return err
+			}
+			optionsLeft.Sub(optionsLeft.Int, bid.Amount.Int)
 		}
+
 	}
 	bidsBelow, err := db.GetBidsBelowClearingForRound(roundAddress, clearingPrice, clearingNonce)
 	if err != nil {
 		return err
 	}
 	for _, bid := range bidsBelow {
+		refundableAmount := &models.BigInt{Int: new(big.Int).Mul(bid.Amount.Int, clearingPrice.Int)}
 		err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
-			"refundable_options": gorm.Expr("mintable_options+?", bid.Amount),
+
+			"refundable_amount": gorm.Expr("refundable_amount+?", refundableAmount),
 		})
 		if err != nil {
 			return err
@@ -186,7 +192,12 @@ func (db *DB) UpdateBiddersAuctionEnd(
 	return nil
 }
 
-func (db *DB) UpdateVaultBalancesOptionSettle(vaultAddress string, remainingLiquidty, remainingLiquidityStashed models.BigInt, blockNumber uint64) error {
+func (db *DB) UpdateVaultBalancesOptionSettle(
+	vaultAddress string,
+	remainingLiquidty,
+	remainingLiquidityStashed models.BigInt,
+	blockNumber uint64,
+) error {
 	difference := models.BigInt{Int: new(big.Int).Sub(remainingLiquidty.Int, remainingLiquidityStashed.Int)}
 	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(map[string]interface{}{
 
@@ -197,7 +208,14 @@ func (db *DB) UpdateVaultBalancesOptionSettle(vaultAddress string, remainingLiqu
 	}).Error
 
 }
-func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(roundAddress string, startingLiquidity, remainingLiquidty, payoutPerOption, optionsSold, blockNumber models.BigInt) error {
+func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
+	roundAddress string,
+	startingLiquidity,
+	remainingLiquidty,
+	payoutPerOption,
+	optionsSold,
+	blockNumber models.BigInt,
+) error {
 
 	db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(map[string]interface{}{
 		"locked_balance":   0,
@@ -293,7 +311,11 @@ func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, bl
 
 }
 
-func (db *DB) UpdateOptionBuyerFields(address string, roundAddress string, updates map[string]interface{}) error {
+func (db *DB) UpdateOptionBuyerFields(
+	address string,
+	roundAddress string,
+	updates map[string]interface{},
+) error {
 	return db.tx.Model(models.OptionBuyer{}).Where("address = ? AND round_address = ?", address, roundAddress).Updates(updates).Error
 }
 
@@ -351,34 +373,42 @@ func (db *DB) DeleteBid(bidID string, roundAddress string) error {
 }
 func (db *DB) GetBidsForRound(roundAddress string) ([]models.Bid, error) {
 	var bids []models.Bid
-	if err := db.Conn.Where("round_address = ?", roundAddress).Order("price DESC").
-		Order("tree_nonce ASC").Find(&bids).Error; err != nil {
+	if err := db.Conn.Where("round_address = ?", roundAddress).Order("price DESC,tree_nonce ASC").Find(&bids).Error; err != nil {
 		return nil, err
 	}
 	return bids, nil
 }
 
-func (db *DB) GetBidsAboveClearingForRound(roundAddress string, clearingPrice models.BigInt, clearingNonce uint64) ([]models.Bid, error) {
+func (db *DB) GetBidsAboveClearingForRound(
+	roundAddress string,
+	clearingPrice models.BigInt,
+	clearingNonce uint64,
+) ([]models.Bid, error) {
 	var bids []models.Bid
-	if err := db.Conn.Where("round_address = ?", roundAddress).
-		Where("price > ? OR (price = ? AND tree_nonce >= ?)", clearingPrice, clearingPrice, clearingNonce).
-		Order("price DESC").
-		Order("tree_nonce ASC").
+	if err := db.Conn.
+		Where("round_address = ?", roundAddress).
+		Where("price > ? OR (price = ? AND tree_nonce <= ?)", clearingPrice, clearingPrice, clearingNonce).
+		Order("price DESC, tree_nonce ASC").
 		Find(&bids).Error; err != nil {
 		return nil, err
 	}
+	log.Printf("BIDS ABOVE %v", bids)
 	return bids, nil
 }
 
-func (db *DB) GetBidsBelowClearingForRound(roundAddress string, clearingPrice models.BigInt, clearingNonce uint64) ([]models.Bid, error) {
+func (db *DB) GetBidsBelowClearingForRound(
+	roundAddress string,
+	clearingPrice models.BigInt,
+	clearingNonce uint64,
+) ([]models.Bid, error) {
 	var bids []models.Bid
+
 	if err := db.Conn.Where("round_address = ?", roundAddress).
-		Where("NOT(price > ? OR (price = ? AND tree_nonce >= ?))", clearingPrice, clearingPrice, clearingNonce).
-		Order("price DESC").
-		Order("tree_nonce ASC").
+		Where("price < ? OR ( price = ? AND tree_nonce >?) ", clearingPrice, clearingPrice, clearingNonce).
 		Find(&bids).Error; err != nil {
 		return nil, err
 	}
+	log.Printf("BIDS ABOVE %v", bids)
 	return bids, nil
 }
 

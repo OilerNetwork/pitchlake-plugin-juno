@@ -59,8 +59,16 @@ func (p *pitchlakePlugin) Shutdown() error {
 	return nil
 }
 
-func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpdate, newClasses map[felt.Felt]core.Class) error {
+func (p *pitchlakePlugin) NewBlock(
+	block *core.Block,
+	stateUpdate *core.StateUpdate,
+	newClasses map[felt.Felt]core.Class,
+) error {
 
+	if block.Number > 291155 {
+		p.Shutdown()
+		log.Fatal("STOP")
+	}
 	p.db.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {
@@ -88,7 +96,11 @@ func (p *pitchlakePlugin) NewBlock(block *core.Block, stateUpdate *core.StateUpd
 	return nil
 }
 
-func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, reverseStateDiff *core.StateDiff) error {
+func (p *pitchlakePlugin) RevertBlock(
+	from,
+	to *junoplugin.BlockAndStateUpdate,
+	reverseStateDiff *core.StateDiff,
+) error {
 	p.log.Println("ExamplePlugin NewBlock called")
 	p.db.Begin()
 	length := len(from.Block.Receipts)
@@ -113,7 +125,12 @@ func (p *pitchlakePlugin) RevertBlock(from, to *junoplugin.BlockAndStateUpdate, 
 	return nil
 }
 
-func (p *pitchlakePlugin) processUDC(events []*core.Event, event *core.Event, index int, blockNumber uint64) error {
+func (p *pitchlakePlugin) processUDC(
+	events []*core.Event,
+	event *core.Event,
+	index int,
+	blockNumber uint64,
+) error {
 	eventHash := adaptors.Keccak256("ContractDeployed")
 	address := adaptors.FeltToHexString(event.Data[0].Bytes())
 	classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
@@ -148,7 +165,12 @@ func (p *pitchlakePlugin) processUDC(events []*core.Event, event *core.Event, in
 	return nil
 }
 
-func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Event, blockNumber uint64) error {
+func (p *pitchlakePlugin) processVaultEvent(
+	vaultAddress string,
+	event *core.Event,
+	blockNumber uint64,
+) error {
+
 	eventName, err := adaptors.DecodeEventNameVault(event.Keys[0].String())
 	if err != nil {
 		log.Printf("Unknown Event")
@@ -156,28 +178,51 @@ func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Eve
 	}
 	log.Printf("NAME %v", eventName)
 	switch eventName {
-	case "Deposit", "Withdraw": //Add withdrawQueue and collect queue case based on event
-		lpAddress, lpUnlocked, vaultUnlocked := p.junoAdaptor.DepositOrWithdraw(*event)
+	case "Deposit": //Add withdrawQueue and collect queue case based on event
+		lpAddress,
+			lpUnlocked,
+			vaultUnlocked := p.junoAdaptor.DepositOrWithdraw(*event)
 
-		err = p.db.DepositOrWithdrawIndex(vaultAddress, lpAddress, lpUnlocked, vaultUnlocked, blockNumber)
+		err = p.db.DepositIndex(vaultAddress, lpAddress, lpUnlocked, vaultUnlocked, blockNumber)
 		//Map the other parameters as well
+	case "Withdraw":
+		lpAddress,
+			lpUnlocked,
+			vaultUnlocked := p.junoAdaptor.DepositOrWithdraw(*event)
 
+		err = p.db.WithdrawIndex(vaultAddress, lpAddress, lpUnlocked, vaultUnlocked, blockNumber)
 	case "WithdrawalQueued":
-		lpAddress, bps, roundId, accountQueuedBefore, accountQueuedNow, vaultQueuedNow := p.junoAdaptor.WithdrawalQueued(*event)
+		lpAddress,
+			bps,
+			roundId,
+			accountQueuedBefore,
+			accountQueuedNow,
+			vaultQueuedNow := p.junoAdaptor.WithdrawalQueued(*event)
 
-		err = p.db.WithdrawalQueuedIndex(lpAddress, vaultAddress, roundId, bps, accountQueuedBefore, accountQueuedNow, vaultQueuedNow)
+		err = p.db.WithdrawalQueuedIndex(
+			lpAddress,
+			vaultAddress,
+			roundId,
+			bps,
+			accountQueuedBefore,
+			accountQueuedNow,
+			vaultQueuedNow,
+		)
 
 	case "StashWithdrawn":
 		lpAddress, amount, vaultStashed := p.junoAdaptor.StashWithdrawn(*event)
-		err = p.db.StashWithdrawnIndex(vaultAddress, lpAddress, amount, vaultStashed, blockNumber)
+		err = p.db.StashWithdrawnIndex(
+			vaultAddress,
+			lpAddress,
+			amount,
+			vaultStashed,
+			blockNumber,
+		)
 	case "OptionRoundDeployed":
 
 		optionRound := p.junoAdaptor.RoundDeployed(*event)
-
-		log.Printf("ROUND %v", optionRound)
 		err = p.db.RoundDeployedIndex(optionRound)
 		p.roundAddresses = append(p.roundAddresses, optionRound.Address)
-		log.Printf("ROUND ADDRESSES %v", p.roundAddresses)
 	}
 	if err != nil {
 		return err
@@ -185,58 +230,83 @@ func (p *pitchlakePlugin) processVaultEvent(vaultAddress string, event *core.Eve
 	return nil
 }
 
-func (p *pitchlakePlugin) processRoundEvent(roundAddress string, event *core.Event, blockNumber uint64) error {
+func (p *pitchlakePlugin) processRoundEvent(
+	roundAddress string,
+	event *core.Event,
+	blockNumber uint64,
+) error {
 	var err error
-	log.Printf("ROUNDEVENT")
 	p.prevStateOptionRound, err = p.db.GetOptionRoundByAddress(roundAddress)
 	if err != nil {
 		return err
 	}
-	log.Printf("HERE")
 	eventName, err := adaptors.DecodeEventNameRound(event.Keys[0].String())
 	if err != nil {
-		log.Printf("Unknown Event")
 		return nil
 	}
-	log.Printf("EVENTNAME: ", eventName)
 	switch eventName {
 	case "PricingDataSet":
-		log.Printf("event %v", event)
 		strikePrice, capLevel, reservePrice := p.junoAdaptor.PricingDataSet(*event)
-		log.Printf("FOUND %v %v %v", strikePrice, capLevel, reservePrice)
 		err = p.db.PricingDataSetIndex(roundAddress, strikePrice, capLevel, reservePrice)
 	case "AuctionStarted":
 		availableOptions, startingLiquidity := p.junoAdaptor.AuctionStarted(*event)
-		err = p.db.AuctionStartedIndex(p.prevStateOptionRound.VaultAddress, roundAddress, blockNumber, availableOptions, startingLiquidity)
+		err = p.db.AuctionStartedIndex(
+			p.prevStateOptionRound.VaultAddress,
+			roundAddress,
+			blockNumber,
+			availableOptions,
+			startingLiquidity,
+		)
 
 	case "AuctionEnded":
-		optionsSold, clearingPrice, unsoldLiquidity, clearingNonce, premiums := p.junoAdaptor.AuctionEnded(*event)
-		log.Printf("HERE'S THE DATA %v %v %v %v", optionsSold, clearingPrice, unsoldLiquidity, clearingNonce, premiums)
-		err = p.db.AuctionEndedIndex(*p.prevStateOptionRound, roundAddress, blockNumber, clearingNonce, optionsSold, clearingPrice, premiums, unsoldLiquidity)
+		optionsSold,
+			clearingPrice,
+			unsoldLiquidity,
+			clearingNonce,
+			premiums := p.junoAdaptor.AuctionEnded(*event)
+
+		err = p.db.AuctionEndedIndex(
+			*p.prevStateOptionRound,
+			roundAddress,
+			blockNumber,
+			clearingNonce,
+			optionsSold,
+			clearingPrice,
+			premiums,
+			unsoldLiquidity,
+		)
 	case "OptionRoundSettled":
 		settlementPrice, payoutPerOption := p.junoAdaptor.RoundSettled(*event)
-		log.Printf("CHECK ME %v %v", p.prevStateOptionRound, roundAddress)
-		err = p.db.RoundSettledIndex(*p.prevStateOptionRound, roundAddress, blockNumber, payoutPerOption, p.prevStateOptionRound.SoldOptions, settlementPrice)
+		err = p.db.RoundSettledIndex(
+			*p.prevStateOptionRound,
+			roundAddress,
+			blockNumber,
+			payoutPerOption,
+			p.prevStateOptionRound.SoldOptions,
+			settlementPrice,
+		)
 	case "BidPlaced":
 		bid, buyer := p.junoAdaptor.BidPlaced(*event)
 		err = p.db.BidPlacedIndex(bid, buyer)
 	case "BidUpdated":
-		bidId, amount, _, treeNonceNew := p.junoAdaptor.BidUpdated(*event)
-		err = p.db.BidUpdatedIndex(event.From.String(), bidId, amount, treeNonceNew)
-	case "OptionsMinted":
-		err = p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
-			"has_minted": true,
-		})
+		bidId, price, _, treeNonceNew := p.junoAdaptor.BidUpdated(*event)
+		err = p.db.BidUpdatedIndex(event.From.String(), bidId, price, treeNonceNew)
+	case "OptionsMinted", "OptionsExercised":
+		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
+		err = p.db.UpdateOptionBuyerFields(
+			buyerAddress,
+			roundAddress,
+			map[string]interface{}{
+				"has_minted": true,
+			})
 	case "UnusedBidsRefunded":
-
-		err = p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
-			"has_refunded": true,
-		})
-	case "OptionsExercised":
-
-		err = p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
-			"has_minted": true,
-		})
+		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
+		err = p.db.UpdateOptionBuyerFields(
+			buyerAddress,
+			roundAddress,
+			map[string]interface{}{
+				"has_refunded": true,
+			})
 	case "Transfer":
 	}
 
@@ -290,19 +360,23 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 	case "BidUpdated":
 		bidId, amount, treeNonceOld, _ := p.junoAdaptor.BidUpdated(*event)
 		p.db.BidUpdatedRevert(bidId, amount, treeNonceOld)
-	case "OptionsMinted":
-		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
-			"has_minted": false,
-		})
+	case "OptionsMinted", "OptionsExercised":
+		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
+		p.db.UpdateOptionBuyerFields(
+			buyerAddress,
+			roundAddress,
+			map[string]interface{}{
+				"has_minted": false,
+			})
 	case "UnusedBidsRefunded":
-		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
-			"has_refunded": false,
-		})
-	case "OptionsExercised":
+		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
+		p.db.UpdateOptionBuyerFields(
+			buyerAddress,
+			roundAddress,
+			map[string]interface{}{
+				"has_refunded": false,
+			})
 
-		p.db.UpdateOptionBuyerFields(adaptors.FeltToHexString(event.Keys[1].Bytes()), roundAddress, map[string]interface{}{
-			"has_minted": false,
-		})
 	case "Transfer":
 	}
 

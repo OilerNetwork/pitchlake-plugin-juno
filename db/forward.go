@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func (db *DB) DepositOrWithdrawIndex(
+func (db *DB) DepositIndex(
 	vaultAddress,
 	lpAddress string,
 	lpUnlocked, vaultUnlocked models.BigInt,
@@ -20,6 +20,27 @@ func (db *DB) DepositOrWithdrawIndex(
 		LatestBlock:     blockNumber,
 	})
 	if err := db.UpsertLiquidityProviderState(newLPState, blockNumber); err != nil {
+		return err
+	}
+	if err := db.UpdateVaultFields(vaultAddress, map[string]interface{}{
+		"unlocked_balance": vaultUnlocked,
+		"latest_block":     blockNumber,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (db *DB) WithdrawIndex(
+	vaultAddress,
+	lpAddress string,
+	lpUnlocked, vaultUnlocked models.BigInt,
+	blockNumber uint64) error {
+	//Map the other parameters as well
+	if err := db.UpdateLiquidityProviderFields(lpAddress, map[string]interface{}{
+		"unlocked_balance": lpUnlocked,
+		"latest_block":     blockNumber,
+	}); err != nil {
 		return err
 	}
 	if err := db.UpdateVaultFields(vaultAddress, map[string]interface{}{
@@ -130,18 +151,8 @@ func (db *DB) AuctionEndedIndex(
 	prevStateOptionRound models.OptionRound,
 	roundAddress string,
 	blockNumber, clearingNonce uint64,
-	optionsSold, clearingPrice, premiums, unsoldData models.BigInt) error {
-	unsoldLiquidity := models.BigInt{Int: new(big.Int).Sub(
-		prevStateOptionRound.StartingLiquidity.Int,
-		new(big.Int).Div(
-			new(big.Int).Mul(
-				prevStateOptionRound.StartingLiquidity.Int,
-				optionsSold.Int,
-			),
-			prevStateOptionRound.AvailableOptions.Int,
-		),
-	)}
-	log.Printf("DATA %v %v %v ", unsoldLiquidity, unsoldData, optionsSold)
+	optionsSold, clearingPrice, premiums, unsoldLiquidity models.BigInt) error {
+	log.Printf("DATA %v %v %v ", unsoldLiquidity, unsoldLiquidity, optionsSold)
 	if err := db.UpdateAllLiquidityProvidersBalancesAuctionEnd(
 		prevStateOptionRound.VaultAddress,
 		prevStateOptionRound.StartingLiquidity,
@@ -215,10 +226,10 @@ func (db *DB) BidPlacedIndex(bid models.Bid, buyer models.OptionBuyer) error {
 	return nil
 }
 
-func (db *DB) BidUpdatedIndex(roundAddress, bidId string, amount models.BigInt, treeNonce uint64) error {
+func (db *DB) BidUpdatedIndex(roundAddress, bidId string, price models.BigInt, treeNonce uint64) error {
 	if err := db.tx.Model(models.Bid{}).Where("bid_id = ? AND round_address = ?", bidId, roundAddress).Updates(map[string]interface{}{
-		"amount":     gorm.Expr("amount + ?", amount),
-		"tree_nonce": treeNonce,
+		"price":      gorm.Expr("price + ?", price),
+		"tree_nonce": treeNonce - 1,
 	}).Error; err != nil {
 		return err
 	}
