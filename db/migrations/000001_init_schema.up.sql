@@ -23,6 +23,7 @@ CREATE TABLE "Option_Rounds"
     vault_address character varying(67) COLLATE pg_catalog."default",
     round_id numeric(78,0),
     cap_level numeric(78,0),
+    unsold_liquidity numeric(78,0),
     starting_liquidity numeric(78,0),
     queued_liquidity numeric(78,0),
     payout_per_option numeric(78,0),

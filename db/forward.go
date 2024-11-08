@@ -182,6 +182,7 @@ func (db *DB) AuctionEndedIndex(
 		roundAddress,
 		clearingPrice,
 		optionsSold,
+		unsoldLiquidity,
 	); err != nil {
 		return err
 	}
@@ -196,15 +197,18 @@ func (db *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAd
 		blockNumber); err != nil {
 		return err
 	}
+	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
+	remainingLiquidity := models.BigInt{Int: new(big.Int).Sub(new(big.Int).Sub(prevStateOptionRound.StartingLiquidity.Int, prevStateOptionRound.UnsoldLiquidity.Int), totalPayout.Int)}
 	if err := db.UpdateAllLiquidityProvidersBalancesOptionSettle(
 		roundAddress,
 		prevStateOptionRound.StartingLiquidity,
-		prevStateOptionRound.QueuedLiquidity,
+		remainingLiquidity,
 		payoutPerOption,
 		optionsSold,
 		models.BigInt{Int: new(big.Int).SetUint64(blockNumber)}); err != nil {
 		return err
 	}
+
 	if err := db.UpdateOptionRoundFields(prevStateOptionRound.Address, map[string]interface{}{
 		"settlement_price":  settlementPrice,
 		"payout_per_option": payoutPerOption,

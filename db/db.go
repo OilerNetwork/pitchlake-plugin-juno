@@ -126,13 +126,14 @@ func (db *DB) UpdateVaultBalancesAuctionEnd(
 func (db *DB) UpdateOptionRoundAuctionEnd(
 	address string,
 	clearingPrice,
-	optionsSold models.BigInt) error {
+	optionsSold, unsoldLiquidity models.BigInt) error {
 	err := db.UpdateOptionRoundFields(
 		address,
 		map[string]interface{}{
-			"clearing_price": clearingPrice,
-			"sold_options":   optionsSold,
-			"state":          "Running",
+			"clearing_price":   clearingPrice,
+			"sold_options":     optionsSold,
+			"state":            "Running",
+			"unsold_liquidity": unsoldLiquidity,
 		})
 	if err != nil {
 		return err
@@ -220,10 +221,10 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	blockNumber models.BigInt,
 ) error {
 
+	//	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
 	db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(map[string]interface{}{
 		"locked_balance":   0,
-		"unlocked_balance": gorm.Expr("unlocked_balance + locked_balance - locked_balance*?*?/?", payoutPerOption, optionsSold, startingLiquidity),
-		"latest_block":     blockNumber,
+		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/?)", remainingLiquidty, startingLiquidity),
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundAddress)
 	if err != nil {

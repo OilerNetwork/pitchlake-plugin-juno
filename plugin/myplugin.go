@@ -65,10 +65,6 @@ func (p *pitchlakePlugin) NewBlock(
 	newClasses map[felt.Felt]core.Class,
 ) error {
 
-	if block.Number > 291155 {
-		p.Shutdown()
-		log.Fatal("STOP")
-	}
 	p.db.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {

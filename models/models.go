@@ -88,6 +88,7 @@ type OptionRound struct {
 	AvailableOptions  BigInt `gorm:"column:available_options;"`
 	SettlementPrice   BigInt `gorm:"column:settlement_price;"`
 	StrikePrice       BigInt `gorm:"column:strike_price;"`
+	UnsoldLiquidity   BigInt `gorm:"column:unsold_liquidity;"`
 	SoldOptions       BigInt `gorm:"column:sold_options;"`
 	ReservePrice      BigInt `gorm:"column:reserve_price"`
 	ClearingPrice     BigInt `gorm:"column:clearing_price"`
