@@ -153,7 +153,8 @@ func (db *DB) UpdateBiddersAuctionEnd(
 	for _, bid := range bidsAbove {
 		if clearingNonce == bid.TreeNonce {
 			log.Printf("optionsLeft %v", optionsLeft)
-			refundableAmount := &models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Amount.Int, optionsLeft.Int), clearingPrice.Int)}
+			refundableAmount := models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Amount.Int, optionsLeft.Int), clearingPrice.Int)}
+			log.Printf("REFUNDABLEAMOUNT %v", refundableAmount)
 			err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
 				"refundable_amount": gorm.Expr("refundable_amount+?", refundableAmount),
 				"mintable_options":  gorm.Expr("mintable_options+?", optionsLeft),
@@ -163,7 +164,8 @@ func (db *DB) UpdateBiddersAuctionEnd(
 			}
 
 		} else {
-			refundableAmount := &models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Price.Int, clearingPrice.Int), bid.Amount.Int)}
+			refundableAmount := models.BigInt{Int: new(big.Int).Mul(new(big.Int).Sub(bid.Price.Int, clearingPrice.Int), bid.Amount.Int)}
+			log.Printf("REFUNDABLEAMOUNT %v", refundableAmount)
 			err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
 				"mintable_options":  gorm.Expr("mintable_options+?", bid.Amount),
 				"refundable_amount": gorm.Expr("refundable_amount+?", refundableAmount),
@@ -180,7 +182,8 @@ func (db *DB) UpdateBiddersAuctionEnd(
 		return err
 	}
 	for _, bid := range bidsBelow {
-		refundableAmount := &models.BigInt{Int: new(big.Int).Mul(bid.Amount.Int, clearingPrice.Int)}
+		refundableAmount := models.BigInt{Int: new(big.Int).Mul(bid.Amount.Int, bid.Price.Int)}
+		log.Printf("REFUNDABLEAMOUNT %v", refundableAmount)
 		err := db.UpdateOptionBuyerFields(bid.BuyerAddress, roundAddress, map[string]interface{}{
 
 			"refundable_amount": gorm.Expr("refundable_amount+?", refundableAmount),
