@@ -64,21 +64,13 @@ func (p *pitchlakePlugin) NewBlock(
 	newClasses map[felt.Felt]core.Class,
 ) error {
 
-	if block.Number > 291267 {
-		p.Shutdown()
-		log.Fatal("SHUTDOWN")
-	}
 	p.db.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {
 		for i, event := range receipt.Events {
 			fromAddress := event.From.String()
 
-			if block.Number == 285211 || block.Number == 285214 {
-				log.Printf("FROM:", fromAddress)
-			}
 			if fromAddress == p.udcAddress {
-				log.Printf("UDC", event.From.String())
 				p.processUDC(receipt.Events, event, i, block.Number)
 			} else if fromAddress == p.vaultAddress {
 				p.processVaultEvent(fromAddress, event, block.Number)
