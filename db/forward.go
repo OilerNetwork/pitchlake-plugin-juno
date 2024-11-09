@@ -190,25 +190,33 @@ func (db *DB) AuctionEndedIndex(
 }
 
 func (db *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber uint64, settlementPrice, optionsSold, payoutPerOption models.BigInt) error {
+	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
+	remainingLiquidity := models.BigInt{Int: new(big.Int).Sub(new(big.Int).Sub(prevStateOptionRound.StartingLiquidity.Int, prevStateOptionRound.UnsoldLiquidity.Int), totalPayout.Int)}
+	remainingLiquidityStashed := models.NewBigInt("0")
+	log.Printf("prevStateOptionRound %v", prevStateOptionRound)
+	if prevStateOptionRound.StartingLiquidity.Cmp(remainingLiquidity.Int) != 0 && prevStateOptionRound.StartingLiquidity.Cmp(prevStateOptionRound.QueuedLiquidity.Int) != 0 {
+		remainingLiquidityStashed = &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidity.Int, prevStateOptionRound.QueuedLiquidity.Int), prevStateOptionRound.StartingLiquidity.Int)}
+	}
 	if err := db.UpdateVaultBalancesOptionSettle(
 		prevStateOptionRound.VaultAddress,
-		prevStateOptionRound.StartingLiquidity,
-		prevStateOptionRound.QueuedLiquidity,
+		remainingLiquidity,
+		*remainingLiquidityStashed,
 		blockNumber); err != nil {
 		return err
 	}
-	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
-	remainingLiquidity := models.BigInt{Int: new(big.Int).Sub(new(big.Int).Sub(prevStateOptionRound.StartingLiquidity.Int, prevStateOptionRound.UnsoldLiquidity.Int), totalPayout.Int)}
+	log.Printf("REMAINING LIQUIDITY %v", remainingLiquidity)
 	if err := db.UpdateAllLiquidityProvidersBalancesOptionSettle(
 		roundAddress,
 		prevStateOptionRound.StartingLiquidity,
 		remainingLiquidity,
+		prevStateOptionRound.UnsoldLiquidity,
 		payoutPerOption,
 		optionsSold,
-		models.BigInt{Int: new(big.Int).SetUint64(blockNumber)}); err != nil {
+		blockNumber); err != nil {
 		return err
 	}
 
+	log.Printf("REACHED HERE %v", prevStateOptionRound)
 	if err := db.UpdateOptionRoundFields(prevStateOptionRound.Address, map[string]interface{}{
 		"settlement_price":  settlementPrice,
 		"payout_per_option": payoutPerOption,

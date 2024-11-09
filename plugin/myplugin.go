@@ -19,12 +19,11 @@ type pitchlakePlugin struct {
 	vaultHash    string
 	vaultAddress string
 	//vaultAddresses       []string
-	roundAddresses       []string
-	udcAddress           string
-	prevStateOptionRound *models.OptionRound
-	db                   *db.DB
-	log                  *log.Logger
-	junoAdaptor          *adaptors.JunoAdaptor
+	roundAddresses []string
+	udcAddress     string
+	db             *db.DB
+	log            *log.Logger
+	junoAdaptor    *adaptors.JunoAdaptor
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -65,6 +64,10 @@ func (p *pitchlakePlugin) NewBlock(
 	newClasses map[felt.Felt]core.Class,
 ) error {
 
+	if block.Number > 291267 {
+		p.Shutdown()
+		log.Fatal("SHUTDOWN")
+	}
 	p.db.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
 	for _, receipt := range block.Receipts {
@@ -83,6 +86,7 @@ func (p *pitchlakePlugin) NewBlock(
 				for _, roundAddress := range p.roundAddresses {
 					if fromAddress == roundAddress {
 						p.processRoundEvent(roundAddress, event, block.Number)
+						break
 					}
 				}
 			}
@@ -232,14 +236,17 @@ func (p *pitchlakePlugin) processRoundEvent(
 	blockNumber uint64,
 ) error {
 	var err error
-	p.prevStateOptionRound, err = p.db.GetOptionRoundByAddress(roundAddress)
+	prevStateOptionRound := p.db.GetOptionRoundByAddress(roundAddress)
 	if err != nil {
 		return err
 	}
+
 	eventName, err := adaptors.DecodeEventNameRound(event.Keys[0].String())
 	if err != nil {
 		return nil
 	}
+	log.Printf("ADDRESSES %v", roundAddress)
+	log.Printf("ROUND STATE PREV %v %v", prevStateOptionRound, eventName)
 	switch eventName {
 	case "PricingDataSet":
 		strikePrice, capLevel, reservePrice := p.junoAdaptor.PricingDataSet(*event)
@@ -247,7 +254,7 @@ func (p *pitchlakePlugin) processRoundEvent(
 	case "AuctionStarted":
 		availableOptions, startingLiquidity := p.junoAdaptor.AuctionStarted(*event)
 		err = p.db.AuctionStartedIndex(
-			p.prevStateOptionRound.VaultAddress,
+			prevStateOptionRound.VaultAddress,
 			roundAddress,
 			blockNumber,
 			availableOptions,
@@ -262,7 +269,7 @@ func (p *pitchlakePlugin) processRoundEvent(
 			premiums := p.junoAdaptor.AuctionEnded(*event)
 
 		err = p.db.AuctionEndedIndex(
-			*p.prevStateOptionRound,
+			prevStateOptionRound,
 			roundAddress,
 			blockNumber,
 			clearingNonce,
@@ -273,14 +280,16 @@ func (p *pitchlakePlugin) processRoundEvent(
 		)
 	case "OptionRoundSettled":
 		settlementPrice, payoutPerOption := p.junoAdaptor.RoundSettled(*event)
-		err = p.db.RoundSettledIndex(
-			*p.prevStateOptionRound,
+		if err := p.db.RoundSettledIndex(
+			prevStateOptionRound,
 			roundAddress,
 			blockNumber,
-			payoutPerOption,
-			p.prevStateOptionRound.SoldOptions,
 			settlementPrice,
-		)
+			prevStateOptionRound.SoldOptions,
+			payoutPerOption,
+		); err != nil {
+			log.Fatal(err)
+		}
 	case "BidPlaced":
 		bid, buyer := p.junoAdaptor.BidPlaced(*event)
 		err = p.db.BidPlacedIndex(bid, buyer)
@@ -338,18 +347,15 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 		log.Fatalf("Failed to decode event: %v", err)
 		return err
 	}
-	p.prevStateOptionRound, err = p.db.GetOptionRoundByAddress(roundAddress)
-	if err != nil {
-		return err
-	}
+	prevStateOptionRound := p.db.GetOptionRoundByAddress(roundAddress)
 	switch eventName {
 	case "AuctionStarted":
-		p.db.AuctionStartedRevert(p.prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
+		p.db.AuctionStartedRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
 	case "AuctionEnded":
-		p.db.AuctionEndedRevert(p.prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
+		p.db.AuctionEndedRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
 
 	case "OptionRoundSettled":
-		p.db.RoundSettledRevert(p.prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
+		p.db.RoundSettledRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
 	case "BidAccepted":
 		id := event.Data[1].String()
 		p.db.BidAcceptedRevert(id, roundAddress)

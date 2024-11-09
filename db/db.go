@@ -202,6 +202,7 @@ func (db *DB) UpdateVaultBalancesOptionSettle(
 	remainingLiquidityStashed models.BigInt,
 	blockNumber uint64,
 ) error {
+	log.Printf("remainingLiquidityStashed %v %v", remainingLiquidty, remainingLiquidityStashed)
 	difference := models.BigInt{Int: new(big.Int).Sub(remainingLiquidty.Int, remainingLiquidityStashed.Int)}
 	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(map[string]interface{}{
 
@@ -216,15 +217,16 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	roundAddress string,
 	startingLiquidity,
 	remainingLiquidty,
+	unsoldLiquidity,
 	payoutPerOption,
-	optionsSold,
-	blockNumber models.BigInt,
+	optionsSold models.BigInt,
+	blockNumber uint64,
 ) error {
 
 	//	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
 	db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(map[string]interface{}{
 		"locked_balance":   0,
-		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/?)", remainingLiquidty, startingLiquidity),
+		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/(?::numeric))", remainingLiquidty, startingLiquidity),
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundAddress)
 	if err != nil {
@@ -232,7 +234,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	}
 	for _, queuedAmount := range queuedAmounts {
 
-		amountToAdd := &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidty.Int, queuedAmount.QueuedAmount.Int), startingLiquidity.Int)}
+		amountToAdd := &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidty.Int, queuedAmount.QueuedAmount.Int), (startingLiquidity.Int))}
 		db.tx.Model(models.LiquidityProviderState{}).Where("address = ?", queuedAmount.Address).
 			Updates(map[string]interface{}{
 				"stashed_balance":  gorm.Expr("stashed_balance + ?", amountToAdd),
@@ -327,12 +329,12 @@ func (db *DB) UpdateAllOptionBuyerFields(roundAddress string, updates map[string
 	return db.tx.Model(models.OptionRound{}).Where("round_address=?", roundAddress).Updates(updates).Error
 }
 
-func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, error) {
+func (db *DB) GetOptionRoundByAddress(address string) models.OptionRound {
 	var or models.OptionRound
-	if err := db.tx.First(&or).Where("address = ?", address).Error; err != nil {
-		return nil, err
+	if err := db.tx.Where("address = ?", address).First(&or).Error; err != nil {
+		log.Fatal("Round Not Found")
 	}
-	return &or, nil
+	return or
 }
 
 func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
