@@ -19,13 +19,6 @@ type DB struct {
 	tx   *gorm.DB
 }
 
-func (db *DB) CreateVault(vault *models.VaultState) error {
-	if err := db.tx.Create(vault).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
 func Init(dsn string) (*DB, error) {
 	log.Printf("connecting to %s", dsn)
 	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
@@ -75,13 +68,11 @@ func (db *DB) Close() error {
 	return sqlDB.Close()
 }
 
-func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber uint64) error {
-	return db.tx.Model(models.LiquidityProviderState{}).Where("unlocked_balance > 0").Updates(
-		map[string]interface{}{
-			"locked_balance":   gorm.Expr("unlocked_balance"),
-			"unlocked_balance": 0,
-			"latest_block":     blockNumber,
-		}).Error
+func (db *DB) CreateVault(vault *models.VaultState) error {
+	if err := db.tx.Create(vault).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (db *DB) UpdateVaultBalanceAuctionStart(vaultAddress string, blockNumber uint64) error {
@@ -89,21 +80,6 @@ func (db *DB) UpdateVaultBalanceAuctionStart(vaultAddress string, blockNumber ui
 		map[string]interface{}{
 			"unlocked_balance": 0,
 			"locked_balance":   gorm.Expr("unlocked_balance"),
-			"latest_block":     blockNumber,
-		}).Error
-}
-
-func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
-	vaultAddress string,
-	startingLiquidity,
-	unsoldLiquidity,
-	premiums models.BigInt,
-	blockNumber uint64) error {
-
-	return db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(
-		map[string]interface{}{
-			"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
-			"unlocked_balance": gorm.Expr("unlocked_balance+FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
 			"latest_block":     blockNumber,
 		}).Error
 }
@@ -121,6 +97,30 @@ func (db *DB) UpdateVaultBalancesAuctionEnd(
 			"latest_block":     blockNumber,
 		}).Error
 
+}
+
+func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber uint64) error {
+	return db.tx.Model(models.LiquidityProviderState{}).Where("unlocked_balance > 0").Updates(
+		map[string]interface{}{
+			"locked_balance":   gorm.Expr("unlocked_balance"),
+			"unlocked_balance": 0,
+			"latest_block":     blockNumber,
+		}).Error
+}
+
+func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
+	vaultAddress string,
+	startingLiquidity,
+	unsoldLiquidity,
+	premiums models.BigInt,
+	blockNumber uint64) error {
+
+	return db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(
+		map[string]interface{}{
+			"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
+			"unlocked_balance": gorm.Expr("unlocked_balance+FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
+			"latest_block":     blockNumber,
+		}).Error
 }
 
 func (db *DB) UpdateOptionRoundAuctionEnd(
@@ -198,16 +198,14 @@ func (db *DB) UpdateBiddersAuctionEnd(
 
 func (db *DB) UpdateVaultBalancesOptionSettle(
 	vaultAddress string,
-	remainingLiquidty,
-	remainingLiquidityStashed models.BigInt,
+	remainingLiquidityStashed,
+	remainingLiquidityNotStashed models.BigInt,
 	blockNumber uint64,
 ) error {
-	log.Printf("remainingLiquidityStashed %v %v", remainingLiquidty, remainingLiquidityStashed)
-	difference := models.BigInt{Int: new(big.Int).Sub(remainingLiquidty.Int, remainingLiquidityStashed.Int)}
 	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(map[string]interface{}{
 
 		"stashed_balance":  gorm.Expr("stashed_balance+ ? ", remainingLiquidityStashed),
-		"unlocked_balance": gorm.Expr("unlocked_balance+?", difference),
+		"unlocked_balance": gorm.Expr("unlocked_balance+?", remainingLiquidityNotStashed),
 		"locked_balance":   0,
 		"latest_block":     blockNumber,
 	}).Error
@@ -217,6 +215,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	roundAddress string,
 	startingLiquidity,
 	remainingLiquidty,
+	remainingLiquidtyNotStashed,
 	unsoldLiquidity,
 	payoutPerOption,
 	optionsSold models.BigInt,
@@ -224,9 +223,9 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 ) error {
 
 	//	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
-	db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(map[string]interface{}{
+	db.tx.Model(models.LiquidityProviderState{}).Where("locked_balance>0").Updates(map[string]interface{}{
 		"locked_balance":   0,
-		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/(?::numeric))", remainingLiquidty, startingLiquidity),
+		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/(?::numeric-?::numeric))", remainingLiquidty, startingLiquidity, unsoldLiquidity),
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundAddress)
 	if err != nil {

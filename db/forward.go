@@ -83,6 +83,7 @@ func (db *DB) StashWithdrawnIndex(
 	vaultAddress, lpAddress string,
 	amount, vaultBalanceNow models.BigInt,
 	blockNumber uint64) error {
+	log.Printf("WITHDRAwN")
 	if err := db.UpdateLiquidityProviderFields(lpAddress, map[string]interface{}{
 		"stashed_balance": 0,
 		"latest_block":    blockNumber,
@@ -192,23 +193,26 @@ func (db *DB) AuctionEndedIndex(
 func (db *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAddress string, blockNumber uint64, settlementPrice, optionsSold, payoutPerOption models.BigInt) error {
 	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
 	remainingLiquidity := models.BigInt{Int: new(big.Int).Sub(new(big.Int).Sub(prevStateOptionRound.StartingLiquidity.Int, prevStateOptionRound.UnsoldLiquidity.Int), totalPayout.Int)}
-	remainingLiquidityStashed := models.NewBigInt("0")
+	remainingLiquidityStashed := *models.NewBigInt("0")
+	remainingLiquidityNotStashed := models.BigInt{Int: new(big.Int).Sub(remainingLiquidity.Int, remainingLiquidityStashed.Int)}
 	log.Printf("prevStateOptionRound %v", prevStateOptionRound)
 	if prevStateOptionRound.StartingLiquidity.Cmp(remainingLiquidity.Int) != 0 && prevStateOptionRound.StartingLiquidity.Cmp(prevStateOptionRound.QueuedLiquidity.Int) != 0 {
-		remainingLiquidityStashed = &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidity.Int, prevStateOptionRound.QueuedLiquidity.Int), prevStateOptionRound.StartingLiquidity.Int)}
+		remainingLiquidityStashed = models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidity.Int, prevStateOptionRound.QueuedLiquidity.Int), prevStateOptionRound.StartingLiquidity.Int)}
 	}
 	if err := db.UpdateVaultBalancesOptionSettle(
 		prevStateOptionRound.VaultAddress,
-		remainingLiquidity,
-		*remainingLiquidityStashed,
+		remainingLiquidityStashed,
+		remainingLiquidityNotStashed,
 		blockNumber); err != nil {
 		return err
 	}
 	log.Printf("REMAINING LIQUIDITY %v", remainingLiquidity)
+
 	if err := db.UpdateAllLiquidityProvidersBalancesOptionSettle(
 		roundAddress,
 		prevStateOptionRound.StartingLiquidity,
 		remainingLiquidity,
+		remainingLiquidityNotStashed,
 		prevStateOptionRound.UnsoldLiquidity,
 		payoutPerOption,
 		optionsSold,
@@ -218,9 +222,10 @@ func (db *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAd
 
 	log.Printf("REACHED HERE %v", prevStateOptionRound)
 	if err := db.UpdateOptionRoundFields(prevStateOptionRound.Address, map[string]interface{}{
-		"settlement_price":  settlementPrice,
-		"payout_per_option": payoutPerOption,
-		"state":             "Settled",
+		"settlement_price":    settlementPrice,
+		"payout_per_option":   payoutPerOption,
+		"remaining_liquidity": remainingLiquidity,
+		"state":               "Settled",
 	}); err != nil {
 		return err
 	}

@@ -71,6 +71,7 @@ func (p *pitchlakePlugin) NewBlock(
 			fromAddress := event.From.String()
 
 			if fromAddress == p.udcAddress {
+				log.Printf("UDC", event.From.String())
 				p.processUDC(receipt.Events, event, i, block.Number)
 			} else if fromAddress == p.vaultAddress {
 				p.processVaultEvent(fromAddress, event, block.Number)
@@ -177,7 +178,7 @@ func (p *pitchlakePlugin) processVaultEvent(
 
 		err = p.db.DepositIndex(vaultAddress, lpAddress, lpUnlocked, vaultUnlocked, blockNumber)
 		//Map the other parameters as well
-	case "Withdraw":
+	case "Withdrawal":
 		lpAddress,
 			lpUnlocked,
 			vaultUnlocked := p.junoAdaptor.DepositOrWithdraw(*event)
