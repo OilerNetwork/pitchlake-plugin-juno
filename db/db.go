@@ -269,6 +269,35 @@ func (db *DB) GetVaultByAddress(address string) (*models.VaultState, error) {
 	return &vault, nil
 }
 
+func (db *DB) GetVaultAddresses() (*[]string, error) {
+	var addresses []string
+
+	// Use Pluck to retrieve only the "address" field from the VaultState model
+	err := db.Conn.Model(&models.VaultState{}).Pluck("address", &addresses).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return &[]string{}, nil
+		} else {
+			return nil, err
+		}
+	}
+	return &addresses, nil
+}
+
+func (db *DB) GetRoundAddressess(vaultAddress string) (*[]string, error) {
+	var addresses []string
+
+	// Use Pluck to retrieve only the "address" field from the VaultState model
+	err := db.Conn.Model(&models.OptionRound{}).Where("vault_address = ?", vaultAddress).Pluck("address", &addresses).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return &[]string{}, nil
+		} else {
+			return nil, err
+		}
+	}
+	return &addresses, nil
+}
 func (db *DB) CreateOptionBuyer(buyer *models.OptionBuyer) error {
 	err := db.tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "address"}, {Name: "round_address"}}, // Composite primary key columns

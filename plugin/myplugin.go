@@ -42,6 +42,25 @@ func (p *pitchlakePlugin) Init() error {
 		log.Fatalf("Failed to initialise db: %v", err)
 		return err
 	}
+	vaultAddresses, err := p.db.GetVaultAddresses()
+	if err != nil {
+		return err
+	}
+	if len(*vaultAddresses) > 0 {
+		p.vaultAddress = (*vaultAddresses)[0]
+	}
+
+	//Make vault address multiple and add loop here to fetch rounds for each vault
+
+	if p.vaultAddress != "" {
+
+		roundAddresses, err := p.db.GetRoundAddressess(p.vaultAddress)
+		if err != nil {
+			return err
+		}
+		p.roundAddresses = *roundAddresses
+	}
+
 	p.junoAdaptor = &adaptors.JunoAdaptor{}
 	p.db = dbClient
 	p.vaultHash = os.Getenv("VAULT_HASH")
