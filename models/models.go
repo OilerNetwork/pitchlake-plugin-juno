@@ -68,11 +68,11 @@ type OptionBuyer struct {
 	Address string `gorm:"column:address;not null"`
 	//Maybe this is not required and can be directly fetched as a view/index on the bids table
 	//Bids       string `gorm:"column:bids;type:jsonb"` // Store bids as JSON in PostgreSQL
-	RoundAddress     string `gorm:"column:round_id;not null"`
-	MintableOptions  BigInt `gorm:"column:mintable_options;"`
-	HasMinted        bool   `gorm:"column:has_minted;"`
-	RefundableAmount BigInt `gorm:"column:refundable_amount;"`
-	HasRefunded      bool   `gorm:"column:has_refunded;"`
+	RoundAddress      string `gorm:"column:round_address;not null"`
+	MintableOptions   BigInt `gorm:"column:mintable_options;"`
+	HasMinted         bool   `gorm:"column:has_minted;"`
+	RefundableOptions BigInt `gorm:"column:refundable_amount;"`
+	HasRefunded       bool   `gorm:"column:has_refunded;"`
 }
 
 type OptionRound struct {
@@ -88,6 +88,7 @@ type OptionRound struct {
 	AvailableOptions  BigInt `gorm:"column:available_options;"`
 	SettlementPrice   BigInt `gorm:"column:settlement_price;"`
 	StrikePrice       BigInt `gorm:"column:strike_price;"`
+	UnsoldLiquidity   BigInt `gorm:"column:unsold_liquidity;"`
 	SoldOptions       BigInt `gorm:"column:sold_options;"`
 	ReservePrice      BigInt `gorm:"column:reserve_price"`
 	ClearingPrice     BigInt `gorm:"column:clearing_price"`
@@ -115,10 +116,10 @@ type LiquidityProviderState struct {
 }
 
 type QueuedLiquidity struct {
-	Address        string `gorm:"column:address;not null"`
-	RoundAddress   BigInt `gorm:"column:round_address;not null"`
-	StartingAmount BigInt `gorm:"column:starting_amount;not null"`
-	QueuedAmount   BigInt `gorm:"column:amount;not null"`
+	Address      string `gorm:"column:address;not null"`
+	RoundAddress string `gorm:"column:round_address;not null"`
+	Bps          BigInt `gorm:"column:bps;not null"`
+	QueuedAmount BigInt `gorm:"column:queued_liquidity;not null"`
 }
 type Bid struct {
 	BuyerAddress string `gorm:"column:buyer_address;not null"`

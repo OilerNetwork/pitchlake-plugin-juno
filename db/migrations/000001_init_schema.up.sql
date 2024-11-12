@@ -23,6 +23,7 @@ CREATE TABLE "Option_Rounds"
     vault_address character varying(67) COLLATE pg_catalog."default",
     round_id numeric(78,0),
     cap_level numeric(78,0),
+    unsold_liquidity numeric(78,0),
     starting_liquidity numeric(78,0),
     queued_liquidity numeric(78,0),
     payout_per_option numeric(78,0),
@@ -42,8 +43,8 @@ ALTER TABLE "Option_Rounds"
 CREATE TABLE "Queued_Liquidity"
 (
     address character varying(67) COLLATE pg_catalog."default" NOT NULL,
-    starting_amount numeric(78,0) NOT NULL,
-    queued_amount numeric(78,0) NOT NULL,
+    queued_liquidity numeric(78,0) NOT NULL,
+    bps numeric(78,0) NOT NULL,
     round_address character varying(67) COLLATE pg_catalog."default" NOT NULL,
     CONSTRAINT lp_round_address PRIMARY KEY (address, round_address),
     CONSTRAINT lp_address FOREIGN KEY (address)
@@ -87,12 +88,12 @@ ALTER TABLE IF EXISTS "VaultStates"
 CREATE TABLE "Option_Buyers"
 (
     address character varying COLLATE pg_catalog."default" NOT NULL,
-    round_id numeric(78,0) NOT NULL,
+    round_address character varying COLLATE pg_catalog."default" NOT NULL,
     has_minted boolean NOT NULL DEFAULT false,
     has_refunded boolean NOT NULL DEFAULT false,
     mintable_options numeric(78,0),
-    refundable_options numeric(78,0),
-    CONSTRAINT buyer_round PRIMARY KEY (address, round_id)
+    refundable_amount numeric(78,0),
+    CONSTRAINT buyer_round PRIMARY KEY (address, round_address)
 );
 
 
