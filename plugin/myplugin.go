@@ -66,7 +66,6 @@ func (p *pitchlakePlugin) Init() error {
 	p.vaultHash = os.Getenv("VAULT_HASH")
 	p.log = log.Default()
 
-	p.log.Printf("STARTED, UDC %v %v %v", p.udcAddress, dbUrl, udcAddress)
 	//Add function to catch up on vaults/rounds that are not synced to currentBlock
 	return nil
 }
@@ -90,7 +89,6 @@ func (p *pitchlakePlugin) NewBlock(
 			fromAddress := event.From.String()
 
 			if fromAddress == p.udcAddress {
-				log.Printf("UDC", event.From.String())
 				p.processUDC(receipt.Events, event, i, block.Number)
 			} else if fromAddress == p.vaultAddress {
 				p.processVaultEvent(fromAddress, event, block.Number)
@@ -113,7 +111,6 @@ func (p *pitchlakePlugin) RevertBlock(
 	to *junoplugin.BlockAndStateUpdate,
 	reverseStateDiff *core.StateDiff,
 ) error {
-	p.log.Println("ExamplePlugin NewBlock called")
 	p.db.Begin()
 	length := len(from.Block.Receipts)
 	for i := length - 1; i >= 0; i-- {
@@ -147,9 +144,7 @@ func (p *pitchlakePlugin) processUDC(
 	address := adaptors.FeltToHexString(event.Data[0].Bytes())
 	classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
 	vaultAddress := os.Getenv("VAULT_ADDRESS")
-	log.Printf("address", address, p.vaultAddress)
 	if address == vaultAddress {
-		log.Printf("MATCHED")
 		p.vaultAddress = address
 		vault := models.VaultState{
 			CurrentRound:    *models.NewBigInt("1"),
@@ -257,8 +252,6 @@ func (p *pitchlakePlugin) processRoundEvent(
 	if err != nil {
 		return nil
 	}
-	log.Printf("ADDRESSES %v", roundAddress)
-	log.Printf("ROUND STATE PREV %v %v", prevStateOptionRound, eventName)
 	switch eventName {
 	case "PricingDataSet":
 		strikePrice, capLevel, reservePrice := p.junoAdaptor.PricingDataSet(*event)

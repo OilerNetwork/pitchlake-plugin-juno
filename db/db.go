@@ -19,6 +19,13 @@ type DB struct {
 	tx   *gorm.DB
 }
 
+func (db *DB) CreateVault(vault *models.VaultState) error {
+	if err := db.tx.Create(vault).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func Init(dsn string) (*DB, error) {
 	log.Printf("connecting to %s", dsn)
 	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
@@ -89,7 +96,6 @@ func (db *DB) UpdateVaultBalancesAuctionEnd(
 	unsoldLiquidity,
 	premiums models.BigInt,
 	blockNumber uint64) error {
-
 	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(
 		map[string]interface{}{
 			"unlocked_balance": gorm.Expr("unlocked_balance+?+?", unsoldLiquidity, premiums),
@@ -134,6 +140,7 @@ func (db *DB) UpdateOptionRoundAuctionEnd(
 			"sold_options":     optionsSold,
 			"state":            "Running",
 			"unsold_liquidity": unsoldLiquidity,
+
 		})
 	if err != nil {
 		return err
@@ -226,6 +233,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	db.tx.Model(models.LiquidityProviderState{}).Where("locked_balance>0").Updates(map[string]interface{}{
 		"locked_balance":   0,
 		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/(?::numeric-?::numeric))", remainingLiquidty, startingLiquidity, unsoldLiquidity),
+		"latest_block":     blockNumber,
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundAddress)
 	if err != nil {

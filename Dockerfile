@@ -42,3 +42,4 @@ COPY .env ./
 
 # Run Juno with the plugin
 CMD ["bash", "-c", "./build/juno --plugin-path myplugin.so --http --http-port=6060 --http-host=0.0.0.0 --network sepolia --rpc-cors-enable --eth-node ${L1_URL} --db-path=/snapshots/"]
+
