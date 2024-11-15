@@ -13,6 +13,7 @@ env:
     EC2_USER: ${{ secrets.EC2_USER }}
     PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
     APP_PORT: 6060
+    CONTAINER_NAME: pitchlake_plugin_juno
 
 permissions:
   id-token: write
@@ -66,72 +67,92 @@ jobs:
           echo "$PRIVATE_KEY" > private_key
           chmod 600 private_key
       
-      - name: Deploy Docker Image on EC2 instance
-        env:
-            AWS_REGION: ${{ env.AWS_REGION }}
-            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-            IMAGE_TAG: ${{ env.IMAGE_TAG }}
-            ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-        uses: appleboy/ssh-action@v0.1.6
-        with: 
-          host: ${{ env.EC2_HOST }}
-          username: ${{ env.EC2_USER }}
-          key: private_key
-          script: |
-            if ! command -v docker &> /dev/null; then
-              sudo apt update
-              sudo apt install -y docker.io
+      - name: verify ssh access 
+        run: |
+          ssh -v -o StrictHostKeyChecking=no -i private_key ${EC2_USER}@${EC2_HOST} echo "SSH connection successful"
+        shell: bash
+        # env:
+        #   EC2_HOST: ${{ secrets.EC2_HOST }}
+        #   EC2_USER: ${{ secrets.EC2_USER }}
+        #   PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+      
+      - name: Install AWS_CLI if not installed
+        run: |
+          ssh -v -o StrictHostKeyChecking=no -i private_key ${EC2_USER}@${EC2_HOST} "
+            if ! command -v aws &> /dev/null
+            then
+              sudo apt-get update
+              sudo apt-get install awscli -y
             fi
+          "
+      
+      - name: Login to AWS ECR on EC2 instance
+        env: 
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-      #   run: |
-      #     ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
-      #       aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
-      #       "
+      - name: Pull Docker image on EC2 instance
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key ${EC2_USER}@${EC2_HOST} "
+            IMAGE_URI=\"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\"
+            sudo docker pull $IMAGE_URI
+          "
 
-      # - name: Pull Docker image on EC2 instance
-      #   env:
-      #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      #     ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-      #     IMAGE_TAG: ${{ github.sha }}
-      #   run: |
-      #     ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
-      #       IMAGE_URI=\"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\"
-      #       sudo docker pull $IMAGE_URI
-      #     "
-
-      # - name: Clean up existing containers and images on EC2
-      #   run: |
-      #     ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
-      #       sudo docker ps -aq | xargs -r sudo docker rm -f || true
-      #       sudo docker images -aq | xargs -r sudo docker rmi -f || true
-      #      "
+      - name: Clean up existing containers and images on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key ${EC2_USER}@${EC2_HOST} "
+            sudo docker ps -aq | xargs -r sudo docker rm -f || true
+            sudo docker images -aq | xargs -r sudo docker rmi -f || true
+           "
   
-      # - name: Run Docker container on EC2
+      - name: Run Docker container on EC2
+        env:
+          APP_PORT: ${{ env.APP_PORT }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
+          CONTAINER_NAME: ${{env.CONTAINER_NAME}}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key ${EC2_USER}@${EC2_HOST} "
+            IMAGE_URI=\"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\"
+            sudo docker run --env-file .env -d --name $CONTAINER_NAME -p ${APP_PORT}:${APP_PORT} $IMAGE_URI
+          "
+
+      - name: Logout from AWS ECR on EC2
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key ${EC2_USER}@${EC2_HOST} "
+            aws ecr get-login-password --region ${AWS_REGION} | sudo docker logout ${ECR_REGISTRY}
+          "
+
+      
+      # - name: Deploy Docker Image on EC2 instance
       #   env:
-      #     APP_PORT: ${{ env.APP_PORT }}
-      #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      #     ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-      #     IMAGE_TAG: ${{ github.sha }}
-      #     DOCKER_CONTAINER: ${{env.DOCKER_CONTAINER}}
-      #   run: |
-      #     ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
-      #       IMAGE_URI=\"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\"
-      #       sudo docker run --env-file .env -d --name $DOCKER_CONTAINER -p ${APP_PORT}:${APP_PORT} $IMAGE_URI
-      #     "
-
-      # - name: Logout from AWS ECR on EC2
-      #   env:
-      #     AWS_REGION: ${{ env.AWS_REGION }}
-      #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      #   run: |
-      #     ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
-      #       aws ecr get-login-password --region ${AWS_REGION} | sudo docker logout ${ECR_REGISTRY}
-      #     "
-
-
-
-
-
-        #     IMAGE_URI=${{ secrets.ECR_IMAGE_URI }}
-        #     echo "Deploying Docker image: $IMAGE_URI"
-        #     docker pull $IMAGE_URI
+      #       AWS_REGION: ${{ env.AWS_REGION }}
+      #       ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      #       IMAGE_TAG: ${{ env.IMAGE_TAG }}
+      #       ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+      #   uses: appleboy/ssh-action@v0.1.6
+      #   with: 
+      #     host: ${{ secrets.EC2_HOST }}
+      #     username: ${{ secrets.EC2_USER }}
+      #     key: ${{ secrets.EC2_SSH_KEY }}
+      #     envs: |
+      #       AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+      #       AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #       AWS_REGION=${{ env.AWS_REGION }}
+      #       IMAGE_TAG=pitchlake-indexer-${{ github.sha }}
+      #     script: |
+      #       if ! command -v docker &> /dev/null; then
+      #         sudo apt update
+      #         sudo apt install -y docker.io
+      #         sudo apt install awscli -y
+      #       fi
