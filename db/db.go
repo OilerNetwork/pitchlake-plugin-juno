@@ -75,13 +75,6 @@ func (db *DB) Close() error {
 	return sqlDB.Close()
 }
 
-func (db *DB) CreateVault(vault *models.VaultState) error {
-	if err := db.tx.Create(vault).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
 func (db *DB) UpdateVaultBalanceAuctionStart(vaultAddress string, blockNumber uint64) error {
 	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(
 		map[string]interface{}{
@@ -140,7 +133,6 @@ func (db *DB) UpdateOptionRoundAuctionEnd(
 			"sold_options":     optionsSold,
 			"state":            "Running",
 			"unsold_liquidity": unsoldLiquidity,
-
 		})
 	if err != nil {
 		return err
