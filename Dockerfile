@@ -37,7 +37,6 @@ COPY --from=build /plugin/db/migrations ./db/migrations
 COPY --from=build /plugin/juno/build/juno ./build/
 COPY --from=build /plugin/myplugin.so ./
 COPY --from=build /plugin/juno/genesis ./genesis
-COPY .env ./
 
 
 # Run Juno with the plugin
