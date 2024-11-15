@@ -60,9 +60,9 @@ jobs:
           docker buildx build --platform=linux/amd64 -f ./Dockerfile -t $IMAGE_URI ./
           docker push $IMAGE_URI
     
-      - name: Pull Docker image
-        run: |
-          docker pull $IMAGE_URI
+      # - name: Pull Docker image
+      #   run: |
+      #     docker pull $IMAGE_URI
       
       # EC2 Deployment Steps
       - name: SSH into EC2
