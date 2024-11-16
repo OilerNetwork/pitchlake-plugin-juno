@@ -144,7 +144,7 @@ jobs:
             ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
             IMAGE_TAG: ${{ env.IMAGE_TAG }}
             ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v1.1.0
         with: 
           host: ${{ env.EC2_HOST }}
           username: ${{ env.EC2_USER }}
