@@ -71,10 +71,10 @@ jobs:
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key ${EC2_USER}@${EC2_HOST} echo "SSH connection successful"
         shell: bash
-        # env:
-        #   EC2_HOST: ${{ secrets.EC2_HOST }}
-        #   EC2_USER: ${{ secrets.EC2_USER }}
-        #   PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
       
       - name: Install AWS_CLI if not installed
         run: |
