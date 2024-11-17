@@ -91,23 +91,29 @@ jobs:
             fi
           "
       
-      - name: Login to AWS ECR on EC2 instance
+      - name: Login to AWS ECR on EC2 instance and pull Image
         env: 
           AWS_REGION: ${{ env.AWS_REGION }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
+          echo "Logging into ECR registry: ${ECR_REGISTRY} in region ${AWS_REGION}"
           aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
 
-      - name: Pull Docker image on EC2 instance
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
-        run: |
-          ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-            IMAGE_URI=\"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\"
-            sudo docker pull $IMAGE_URI
-          "
+          echo "Pulling image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+
+      # - name: Pull Docker image on EC2 instance
+      #   env:
+      #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      #     ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+      #     IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
+      #   run: |
+      #     ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+      #       IMAGE_URI=\"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\"
+      #       sudo docker pull $IMAGE_URI
+      #     "
 
       - name: Clean up existing containers and images on EC2
         run: |
