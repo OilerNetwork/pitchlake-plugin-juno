@@ -106,7 +106,7 @@ jobs:
           sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
           echo "Running image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-          sudo docker run -d ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          sudo docker run -d --name ${env.CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
       - name: Clean up existing containers and images on EC2
         run: |
