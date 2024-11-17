@@ -104,17 +104,6 @@ jobs:
           echo "Pulling image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
-      # - name: Pull Docker image on EC2 instance
-      #   env:
-      #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      #     ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-      #     IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
-      #   run: |
-      #     ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-      #       IMAGE_URI=\"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\"
-      #       sudo docker pull $IMAGE_URI
-      #     "
-
       - name: Clean up existing containers and images on EC2
         run: |
           ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
@@ -132,7 +121,7 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
             IMAGE_URI=\"${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}\"
-            sudo docker run --env-file .env -d --name $CONTAINER_NAME -p ${APP_PORT}:${APP_PORT} $IMAGE_URI
+            sudo docker run -d --name $CONTAINER_NAME -p ${APP_PORT}:${APP_PORT} $IMAGE_URI
           "
 
       - name: Logout from AWS ECR on EC2
@@ -145,25 +134,4 @@ jobs:
           "
 
       
-      # - name: Deploy Docker Image on EC2 instance
-      #   env:
-      #       AWS_DEFAULT_REGION: eu-central-1
-      #       ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      #       IMAGE_TAG: ${{ env.IMAGE_TAG }}
-      #       ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-      #   uses: appleboy/ssh-action@v1.1.0
-      #   with: 
-      #     host: ${{ env.EC2_HOST }}
-      #     username: ${{ env.EC2_USER }}
-      #     key: ${{ secrets.EC2_SSH_KEY }}
-      #     envs: PRIVATE_KEY,ECR_REGISTRY,ECR_REPOSITORY,IMAGE_TAG,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_DEFAULT_REGION,AWS_REGION
-      #     script: |
-      #         sudo apt-get update
-      #         sudo apt-get install docker.io -y 
-      #         sudo apt-get install awscli -y
-      #         sudo aws ecr get-login-password --region ${AWS_REGION}
-      #         sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
-      #         sudo docker ps -aq | xargs -r sudo docker rm -f || true
-      #         sudo docker images -aq | xargs -r sudo docker rmi -f || true
-      #         sudo docker pull $IMAGE_URI
-      #         sudo docker run --env-file .env -d --name ${{env.CONTAINER_NAME}} -p ${{env.APP_PORT}}:${{env.APP_PORT}} $IMAGE_URI
+      
