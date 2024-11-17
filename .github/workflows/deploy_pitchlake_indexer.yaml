@@ -91,7 +91,7 @@ jobs:
             fi
           "
       
-      - name: Login to AWS ECR on EC2 instance and pull Image
+      - name: Login to AWS ECR on EC2 instance, pull Image and run image
         env: 
           AWS_REGION: ${{ env.AWS_REGION }}
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -106,7 +106,7 @@ jobs:
           sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
           echo "Running image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-          sudo docker run -d --name $CONTAINER_NAME -p ${APP_PORT}:${APP_PORT} $IMAGE_URI
+          sudo docker run -d -p ${APP_PORT}:${APP_PORT} $IMAGE_URI
 
       - name: Clean up existing containers and images on EC2
         run: |
