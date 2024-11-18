@@ -19,13 +19,6 @@ type DB struct {
 	tx   *gorm.DB
 }
 
-func (db *DB) CreateVault(vault *models.VaultState) error {
-	if err := db.tx.Create(vault).Error; err != nil {
-		return err
-	}
-	return nil
-}
-
 func Init(dsn string) (*DB, error) {
 	log.Printf("connecting to %s", dsn)
 	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
@@ -75,6 +68,13 @@ func (db *DB) Close() error {
 	return sqlDB.Close()
 }
 
+func (db *DB) CreateVault(vault *models.VaultState) error {
+	if err := db.tx.Create(vault).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
 func (db *DB) UpdateVaultBalanceAuctionStart(vaultAddress string, blockNumber uint64) error {
 	return db.tx.Model(models.VaultState{}).Where("address=?", vaultAddress).Updates(
 		map[string]interface{}{
@@ -98,8 +98,8 @@ func (db *DB) UpdateVaultBalancesAuctionEnd(
 
 }
 
-func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber uint64) error {
-	return db.tx.Model(models.LiquidityProviderState{}).Where("unlocked_balance > 0").Updates(
+func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionStart(vaultAddress string, blockNumber uint64) error {
+	return db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND unlocked_balance > 0", vaultAddress).Updates(
 		map[string]interface{}{
 			"locked_balance":   gorm.Expr("unlocked_balance"),
 			"unlocked_balance": 0,
@@ -114,7 +114,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
 	premiums models.BigInt,
 	blockNumber uint64) error {
 
-	return db.tx.Model(models.LiquidityProviderState{}).Where("1=1").Updates(
+	return db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=?", vaultAddress).Updates(
 		map[string]interface{}{
 			"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
 			"unlocked_balance": gorm.Expr("unlocked_balance+FLOOR((locked_balance*?))/?+FLOOR((?*locked_balance)/?)", unsoldLiquidity, startingLiquidity, premiums, startingLiquidity),
@@ -211,6 +211,7 @@ func (db *DB) UpdateVaultBalancesOptionSettle(
 
 }
 func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
+	vault_address,
 	roundAddress string,
 	startingLiquidity,
 	remainingLiquidty,
@@ -222,7 +223,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 ) error {
 
 	//	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
-	db.tx.Model(models.LiquidityProviderState{}).Where("locked_balance>0").Updates(map[string]interface{}{
+	db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND locked_balance>0").Updates(map[string]interface{}{
 		"locked_balance":   0,
 		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/(?::numeric-?::numeric))", remainingLiquidty, startingLiquidity, unsoldLiquidity),
 		"latest_block":     blockNumber,
@@ -234,7 +235,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	for _, queuedAmount := range queuedAmounts {
 
 		amountToAdd := &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidty.Int, queuedAmount.QueuedAmount.Int), (startingLiquidity.Int))}
-		db.tx.Model(models.LiquidityProviderState{}).Where("address = ?", queuedAmount.Address).
+		db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND address = ?", vault_address, queuedAmount.Address).
 			Updates(map[string]interface{}{
 				"stashed_balance":  gorm.Expr("stashed_balance + ?", amountToAdd),
 				"unlocked_balance": gorm.Expr("unlocked_balance - ?", amountToAdd),
@@ -332,7 +333,7 @@ func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, bl
 
 	// Perform upsert using GORM's Clauses with the transaction object
 	err := db.tx.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "address"}},
+		Columns:   []clause.Column{{Name: "address"}, {Name: "vault_address"}},
 		DoUpdates: clause.AssignmentColumns([]string{"unlocked_balance", "locked_balance", "latest_block"}),
 	}).Create(lp).Error
 
@@ -372,8 +373,8 @@ func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interfa
 func (db *DB) UpdateVaultFields(address string, updates map[string]interface{}) error {
 	return db.tx.Model(models.VaultState{}).Where("address = ?", address).Updates(updates).Error
 }
-func (db *DB) UpdateLiquidityProviderFields(address string, updates map[string]interface{}) error {
-	return db.tx.Model(models.LiquidityProviderState{}).Where("address = ?", address).Updates(updates).Error
+func (db *DB) UpdateLiquidityProviderFields(vaultAddress, address string, updates map[string]interface{}) error {
+	return db.tx.Model(models.LiquidityProviderState{}).Where("vault_address = ? AND address = ?", vaultAddress, address).Updates(updates).Error
 }
 
 // DeleteOptionRound deletes an OptionRound record by its ID
@@ -493,10 +494,10 @@ func (db *DB) RevertVaultState(address string, blockNumber uint64) error {
 	return nil
 }
 
-func (db *DB) RevertAllLPState(blockNumber uint64) error {
+func (db *DB) RevertAllLPState(vaultAddress string, blockNumber uint64) error {
 	var lpStates []models.LiquidityProviderState
 	var lpHistoric, postRevert models.LiquidityProvider
-	if err := db.tx.Model(models.LiquidityProviderState{}).Where("last_block = ?", blockNumber).Find(&lpStates).Error; err != nil {
+	if err := db.tx.Model(models.LiquidityProviderState{}).Where("vault_address = ? AND last_block = ?", vaultAddress, blockNumber).Find(&lpStates).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		} else {
@@ -505,7 +506,7 @@ func (db *DB) RevertAllLPState(blockNumber uint64) error {
 	}
 
 	for _, lpState := range lpStates {
-		if err := db.tx.Model(models.LiquidityProvider{}).Where("address = ? AND block_number = ?", lpState.Address, blockNumber).First(&lpHistoric).Error; err != nil {
+		if err := db.tx.Model(models.LiquidityProvider{}).Where("vault_address = ? AND address = ? AND block_number = ?", vaultAddress, lpState.Address, blockNumber).First(&lpHistoric).Error; err != nil {
 			return err
 		}
 
@@ -513,13 +514,13 @@ func (db *DB) RevertAllLPState(blockNumber uint64) error {
 			return err
 		}
 
-		if err := db.tx.Where("address = ?", lpState.Address).
+		if err := db.tx.Where("vault_address = ? AND address = ?", vaultAddress, lpState.Address).
 			Order("latest_block DESC").
 			First(&postRevert).Error; err != nil {
 			return nil
 		}
 
-		if err := db.tx.Where("address = ?").Updates(map[string]interface{}{
+		if err := db.tx.Where("vault_address = ? AND address = ?").Updates(map[string]interface{}{
 			"unlocked_balance": postRevert.UnlockedBalance,
 			"locked_balance":   postRevert.LockedBalance,
 			"stashed_balance":  postRevert.StashedBalance,
@@ -531,10 +532,10 @@ func (db *DB) RevertAllLPState(blockNumber uint64) error {
 	return nil
 }
 
-func (db *DB) RevertLPState(address string, blockNumber uint64) error {
+func (db *DB) RevertLPState(vaultAddress, address string, blockNumber uint64) error {
 	var lpState models.LiquidityProviderState
 	var lpHistoric, postRevert models.LiquidityProvider
-	if err := db.tx.Where("address = ? AND last_block = ?", address, blockNumber).First(&lpState).Error; err != nil {
+	if err := db.tx.Where("vault_address = ? AND address = ? AND last_block = ?", vaultAddress, address, blockNumber).First(&lpState).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		} else {
@@ -542,7 +543,7 @@ func (db *DB) RevertLPState(address string, blockNumber uint64) error {
 		}
 	}
 
-	if err := db.tx.Model(models.LiquidityProvider{}).Where("address = ? AND block_number = ?", address, blockNumber).First(&lpHistoric).Error; err != nil {
+	if err := db.tx.Model(models.LiquidityProvider{}).Where("vault_address = ? AND address = ? AND block_number = ?", vaultAddress, address, blockNumber).First(&lpHistoric).Error; err != nil {
 		return err
 	}
 
@@ -550,13 +551,13 @@ func (db *DB) RevertLPState(address string, blockNumber uint64) error {
 		return err
 	}
 
-	if err := db.tx.Model(models.LiquidityProvider{}).Where("address = ?", address).
+	if err := db.tx.Model(models.LiquidityProvider{}).Where("vault_address = ? AND address = ?", vaultAddress, address).
 		Order("latest_block DESC").
 		First(&postRevert).Error; err != nil {
 		return nil
 	}
 
-	if err := db.tx.Model(models.LiquidityProviderState{}).Where("address = ?").Updates(map[string]interface{}{
+	if err := db.tx.Model(models.LiquidityProviderState{}).Where("vault_address = ? AND address = ?", vaultAddress, address).Updates(map[string]interface{}{
 		"unlocked_balance": postRevert.UnlockedBalance,
 		"locked_balance":   postRevert.LockedBalance,
 		"stashed_balance":  postRevert.StashedBalance,
