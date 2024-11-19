@@ -93,6 +93,17 @@ jobs:
           aws --version
 
           EOF
+
+          echo "Configuring AWS CLI..."
+          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+          aws configure set region $AWS_REGION
+
+          echo "Verifying AWS CLI configuration..."
+          aws sts get-caller-identity
+
+          echo "AWS CLI installation and configuration complete."
+          EOF
            
 
       - name: Install docker if not installed
@@ -116,10 +127,10 @@ jobs:
           
       - name: Login to AWS ECR on EC2 instance, pull Image and run image
         env: 
-          AWS_REGION: ${{ env.AWS_REGION }}
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          AWS_REGION: eu-central-1
+          ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
+          ECR_REPOSITORY: pitchlake-ui-new_images_repository
+          IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
         run: |
           echo "Connecting to EC2 instance via SSH"
