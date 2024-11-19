@@ -91,6 +91,14 @@ jobs:
             fi
           "
       
+      - name: Clean up existing containers and images on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+            sudo docker ps -aq | xargs -r sudo docker rm -f || true
+            sudo docker images -aq | xargs -r sudo docker rmi -f || true
+           "
+
+          
       - name: Login to AWS ECR on EC2 instance, pull Image and run image
         env: 
           AWS_REGION: ${{ env.AWS_REGION }}
@@ -107,13 +115,6 @@ jobs:
 
           echo "Running image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           sudo docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-
-      - name: Clean up existing containers and images on EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-            sudo docker ps -aq | xargs -r sudo docker rm -f || true
-            sudo docker images -aq | xargs -r sudo docker rmi -f || true
-           "
 
       - name: Logout from AWS ECR on EC2
         env:
