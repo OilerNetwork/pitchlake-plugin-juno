@@ -75,11 +75,25 @@ jobs:
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} echo "SSH connection successful"
       
-      - name: Install AWS_CLI
-        id: install-aws-cli
-        uses: unfor19/install-aws-cli-action@v1
-        with:
-          version: 2              
+      - name: SSH into EC2 and Install AWS CLI
+        run: |
+          echo "Connecting to EC2 instance via SSH"
+          ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOF'
+
+          echo "Updating system packages"
+          sudo apt-get update -y
+
+          echo "Installing AWS CLI"
+          sudo apt-get install -y unzip curl
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+
+          echo "Verifying AWS CLI installation"
+          aws --version
+
+          EOF
+           
 
       - name: Install docker if not installed
         run: |
@@ -92,12 +106,12 @@ jobs:
             fi
           "
       
-      - name: Clean up existing containers and images on EC2
-        run: |
-          ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-            sudo docker ps -aq | xargs -r sudo docker rm -f || true
-            sudo docker images -aq | xargs -r sudo docker rmi -f || true
-           "
+      # - name: Clean up existing containers and images on EC2
+      #   run: |
+      #     ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+      #       sudo docker ps -aq | xargs -r sudo docker rm -f || true
+      #       sudo docker images -aq | xargs -r sudo docker rmi -f || true
+      #      "
 
           
       - name: Login to AWS ECR on EC2 instance, pull Image and run image
