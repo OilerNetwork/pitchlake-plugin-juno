@@ -75,29 +75,6 @@ jobs:
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} echo "SSH connection successful"
       
-      - name: SSH into EC2 and Install AWS CLI
-        run: |
-          echo "Connecting to EC2 instance via SSH"
-          ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOF'
-
-          echo "Updating system packages"
-          sudo apt-get update -y
-
-          echo "Verifying AWS CLI installation"
-          aws --version
-
-          echo "Configuring AWS CLI..."
-          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-          aws configure set region $AWS_REGION
-
-          echo "Verifying AWS CLI configuration..."
-          aws sts get-caller-identity
-
-          echo "AWS CLI installation and configuration complete."
-          EOF
-           
-
       - name: Install docker if not installed
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
@@ -108,27 +85,38 @@ jobs:
               sudo apt-get install -y docker-compose
             fi
           "
-      
-      # - name: Clean up existing containers and images on EC2
-      #   run: |
-      #     ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-      #       sudo docker ps -aq | xargs -r sudo docker rm -f || true
-      #       sudo docker images -aq | xargs -r sudo docker rmi -f || true
-      #      "
-
           
-      - name: Login to AWS ECR on EC2 instance, pull Image and run image
+      - name: SSH into EC2 and Configure AWS CLI, Login to AWS ECR on EC2 instance, pull Image and run image
         env: 
           AWS_REGION: eu-central-1
           ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
           ECR_REPOSITORY: pitchlake-ui-new_images_repository
           IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
         run: |
           echo "Connecting to EC2 instance via SSH"
           ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOF'
           
           echo "SSH connection successful" 
+
+          echo "Updating system packages"
+          sudo apt-get update -y
+
+          echo "Verifying AWS CLI installation"
+          aws --version
+
+          echo "Configuring AWS CLI..."
+          export AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+          export AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+          export AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+
+          echo "Verifying AWS CLI configuration..."
+          aws sts get-caller-identity
+
+          echo "AWS CLI installation and configuration complete."
 
           echo "Logging into ECR registry: ${ECR_REGISTRY} in region ${AWS_REGION}"
           aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
@@ -136,7 +124,7 @@ jobs:
           echo "Pulling image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
-          echo "Stopping and removing any running container with the same name"
+          echo "Stoping and removing any running container with the same name"
           sudo docker stop ${CONTAINER_NAME} || true
           sudo docker rm ${CONTAINER_NAME} || true          
 
