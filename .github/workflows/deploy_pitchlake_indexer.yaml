@@ -108,7 +108,10 @@ jobs:
           IMAGE_TAG: ${{ env.IMAGE_TAG }}
           IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
         run: |
-          ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} echo "SSH connection successful"
+          echo "Connecting to EC2 instance via SSH"
+          ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} << 'EOF'
+          
+          echo "SSH connection successful" 
 
           echo "Logging into ECR registry: ${ECR_REGISTRY} in region ${AWS_REGION}"
           aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
@@ -116,9 +119,15 @@ jobs:
           echo "Pulling image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
 
+          echo "Stopping and removing any running container with the same name"
+          sudo docker stop ${CONTAINER_NAME} || true
+          sudo docker rm ${CONTAINER_NAME} || true          
+
           echo "Running image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
           sudo docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-          "
+
+          echo "Container ${CONTAINER_NAME} is now running"
+          EOF
 
       - name: Logout from AWS ECR on EC2
         env:
