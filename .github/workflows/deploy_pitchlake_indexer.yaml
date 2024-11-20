@@ -85,7 +85,7 @@ jobs:
 
       - name: Pass AWS credentials to EC2
         run: |
-          ./pass-aws-credentials.sh \
+          bash ./.github/workflows/pass-aws-credentials.sh \
           "${{ secrets.EC2_USER }}" \
           "${{ secrets.EC2_HOST }}" \
           "private_key.pem" \
