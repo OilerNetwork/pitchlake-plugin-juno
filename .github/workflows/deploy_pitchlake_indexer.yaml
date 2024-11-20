@@ -31,14 +31,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Check if Docker is installed
-        run: |
-          if ! command -v docker &> /dev/null
-          then
-            sudo apt update
-            sudo apt install -y docker.io
-            sudo apt install -y docker-compose
-          fi
+      # - name: Check if Docker is installed
+      #   run: |
+      #     if ! command -v docker &> /dev/null
+      #     then
+      #       sudo apt update
+      #       sudo apt install -y docker.io
+      #       sudo apt install -y docker-compose
+      #     fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -53,28 +53,53 @@ jobs:
         with:
           mask-password: "true"
 
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-        run: |
-          IMAGE_TAG=pitchlake-indexer-${{ github.sha }}
-          IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-          docker buildx build --platform=linux/amd64 -f ./Dockerfile -t $IMAGE_URI ./
-          docker push $IMAGE_URI
+      # - name: Build, tag, and push image to Amazon ECR
+      #   id: build-image
+      #   env:
+      #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      #     ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+      #   run: |
+      #     IMAGE_TAG=pitchlake-indexer-${{ github.sha }}
+      #     IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      #     echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+      #     docker buildx build --platform=linux/amd64 -f ./Dockerfile -t $IMAGE_URI ./
+      #     docker push $IMAGE_URI
       
       # EC2 Deployment Steps
+
+      - name: Configure AWS environment variables
+        run: |
+          echo "Setting up environment variables for AWS credentials"
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
+          echo "AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }}" >> $GITHUB_ENV    
+          
       - name: Change key permission
         run: |
-          echo "$PRIVATE_KEY" > private_key
-          chmod 600 private_key
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
       
-      - name: verify ssh access 
+      # - name: verify ssh access 
+      #   run: |
+      #     ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} echo "SSH connection successful"
+
+      - name: Pass AWS credentials to EC2
         run: |
-          ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} echo "SSH connection successful"
-          
+          ./pass-aws-credentials.sh \
+          "${{ secrets.EC2_USER }}" \
+          "${{ secrets.EC2_HOST }}" \
+          "private_key.pem" \
+          "${{ env.AWS_ACCESS_KEY_ID }}" \
+          "${{ env.AWS_SECRET_ACCESS_KEY }}" \
+          "${{ env.AWS_SESSION_TOKEN }}"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Cleanup private key
+        run: rm private_key.pem
+
       - name: Install docker if not installed
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
