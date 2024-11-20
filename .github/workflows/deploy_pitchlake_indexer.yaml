@@ -97,16 +97,16 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
 
-      - name: Install docker if not installed
-        run: |
-          ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-            if ! command -v aws &> /dev/null
-            then
-              sudo apt-get update
-              sudo apt-get install -y docker.io
-              sudo apt-get install -y docker-compose
-            fi
-          "  
+      # - name: Install docker if not installed
+      #   run: |
+      #     ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+      #       if ! command -v aws &> /dev/null
+      #       then
+      #         sudo apt-get update
+      #         sudo apt-get install -y docker.io
+      #         sudo apt-get install -y docker-compose
+      #       fi
+      #     "  
 
       - name: Login to AWS ECR on EC2 instance
         env: 
