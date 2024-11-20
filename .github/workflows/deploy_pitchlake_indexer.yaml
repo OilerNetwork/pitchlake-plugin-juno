@@ -97,12 +97,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
 
-      - name: Cleanup private key
-        run: rm private_key.pem
-
       - name: Install docker if not installed
         run: |
-          ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+          ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
             if ! command -v aws &> /dev/null
             then
               sudo apt-get update
@@ -116,16 +113,28 @@ jobs:
               AWS_REGION: ${{ env.AWS_REGION }}
               ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
               ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-              IMAGE_TAG: ${{ env.IMAGE_TAG }}
+              IMAGE_TAG: pitchlake-indexer-206236be0f1e5343ab148fa833c1368fdb47ab7a
               CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
         run: |
-          ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+          ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
             aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
             sudo docker ps -aq | xargs -r sudo docker rm -f || true
             sudo docker images -aq | xargs -r sudo docker rmi -f || true
             sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}     
             sudo docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}  
           "
+
+      - name: Logout from AWS ECR on EC2
+        env:
+            AWS_REGION: ${{ env.AWS_REGION }}
+            ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+            ssh -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+              aws ecr get-login-password --region ${AWS_REGION} | sudo docker logout ${ECR_REGISTRY}
+            "
+            
+      - name: Cleanup private key
+        run: rm private_key.pem
 
       # - name: SSH into EC2 and Configure AWS CLI, Login to AWS ECR on EC2 instance, pull Image and run image
       #   env: 
@@ -175,14 +184,6 @@ jobs:
       #     echo "Container ${CONTAINER_NAME} is now running"
       #     EOF
 
-      - name: Logout from AWS ECR on EC2
-        env:
-          AWS_REGION: ${{ env.AWS_REGION }}
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        run: |
-          ssh -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-            aws ecr get-login-password --region ${AWS_REGION} | sudo docker logout ${ECR_REGISTRY}
-          "
 
       
       
