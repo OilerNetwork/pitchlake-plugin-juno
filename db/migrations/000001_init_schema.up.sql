@@ -35,10 +35,6 @@ CREATE TABLE "Option_Rounds"
 );
 
 
-ALTER TABLE "Option_Rounds"
-    OWNER to pitchlake_user;
-
-
 -- Table: public.Queued_Liquidity
 
 CREATE TABLE "Queued_Liquidity"
@@ -60,9 +56,6 @@ CREATE TABLE "Queued_Liquidity"
         NOT VALID
 );
 
-ALTER TABLE IF EXISTS "Queued_Liquidity"
-    OWNER to pitchlake_user;
-
 
 -- Table: public.VaultStates
 
@@ -77,10 +70,6 @@ CREATE TABLE "VaultStates"
     current_round numeric(78,0),
     CONSTRAINT "VaultState_pkey" PRIMARY KEY (address)
 );
-
-
-ALTER TABLE IF EXISTS "VaultStates"
-    OWNER to pitchlake_user;
 
 
 -- Table: public.Option_Buyers
@@ -98,10 +87,6 @@ CREATE TABLE "Option_Buyers"
 );
 
 
-ALTER TABLE "Option_Buyers"
-    OWNER to pitchlake_user;
-
-
 -- Table: public.Bids
 
 
@@ -115,10 +100,6 @@ CREATE TABLE "Bids"
     price numeric(78,0),
     CONSTRAINT round_address_bid_id PRIMARY KEY (round_address, bid_id)
 );
-
-
-ALTER TABLE "Bids"
-    OWNER to pitchlake_user;
 
 
 
