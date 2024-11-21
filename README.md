@@ -18,4 +18,8 @@ Go plugings require that both the application (Juno in this case) and the plugin
 
 # Running with Docker
 
+## Use snapshot
+The snapshots are mapped in the docker container from $HOME/snapshots folder. Checkout the Juno repo[https://github.com/NethermindEth/juno] for more details and to get the latest snapshot. Create a folder named snapshots in your root directory to map this.
+
+## Run
 Run `docker compose up --build` from the root of this repository.
