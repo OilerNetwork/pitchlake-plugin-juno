@@ -19,8 +19,6 @@ BEGIN
 END;
 $BODY$;
 
-ALTER FUNCTION public.notify_lp_update()
-    OWNER TO pitchlake_user;
 
 
 -- FUNCTION: public.notify_or_update()
@@ -44,8 +42,6 @@ BEGIN
 END;
 $BODY$;
 
-ALTER FUNCTION public.notify_or_update()
-    OWNER TO pitchlake_user;
 
 
 
@@ -70,8 +66,6 @@ BEGIN
 END;
 $BODY$;
 
-ALTER FUNCTION public.notify_vault_update()
-    OWNER TO pitchlake_user;
 
 -- FUNCTION: public.notify_ob_update()
 
@@ -94,7 +88,4 @@ BEGIN
     RETURN NEW;
 END;
 $BODY$;
-
-ALTER FUNCTION public.notify_ob_update()
-    OWNER TO pitchlake_user;
     
