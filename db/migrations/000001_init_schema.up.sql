@@ -2,11 +2,12 @@
 CREATE TABLE "Liquidity_Providers"
 (
     address character varying COLLATE pg_catalog."default" NOT NULL,
+    vault_address character varying COLLATE pg_catalog."default" NOT NULL,
     stashed_balance numeric(78,0),
     locked_balance numeric(78,0),
     unlocked_balance numeric(78,0),
     latest_block numeric(78,0),
-    CONSTRAINT "Liquidity_Providers_pkey" PRIMARY KEY (address)
+    CONSTRAINT "Liquidity_Providers_pkey" PRIMARY KEY (address, vault_address)
 );
 
 CREATE TABLE "Option_Rounds"

@@ -57,6 +57,7 @@ type Vault struct {
 }
 
 type LiquidityProvider struct {
+	VaultAddress    string `gorm:"column:vault_address;not null"`
 	Address         string `gorm:"column:address;not null"`
 	UnlockedBalance BigInt `gorm:"column:unlocked_balance;not null"`
 	LockedBalance   BigInt `gorm:"column:locked_balance;not null"`
@@ -108,6 +109,7 @@ type VaultState struct {
 }
 
 type LiquidityProviderState struct {
+	VaultAddress    string `gorm:"column:vault_address;not null"`
 	Address         string `gorm:"column:address;not null;primaryKey"`
 	UnlockedBalance BigInt `gorm:"column:unlocked_balance;not null"`
 	LockedBalance   BigInt `gorm:"column:locked_balance;not null"`

@@ -10,7 +10,7 @@ func (db *DB) DepositOrWithdrawRevert(vaultAddress, lpAddress string, blockNumbe
 	//Map the other parameters as well
 
 	db.RevertVaultState(vaultAddress, blockNumber)
-	db.RevertLPState(lpAddress, blockNumber)
+	db.RevertLPState(vaultAddress, lpAddress, blockNumber)
 }
 
 func (db *DB) RoundDeployedRevert(roundAddress string) {
@@ -20,7 +20,7 @@ func (db *DB) RoundDeployedRevert(roundAddress string) {
 
 func (db *DB) AuctionStartedRevert(vaultAddress, roundAddress string, blockNumber uint64) {
 	db.RevertVaultState(vaultAddress, blockNumber)
-	db.RevertAllLPState(blockNumber)
+	db.RevertAllLPState(vaultAddress, blockNumber)
 	db.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
 		"available_options":  0,
 		"starting_liquidity": 0,
@@ -30,7 +30,7 @@ func (db *DB) AuctionStartedRevert(vaultAddress, roundAddress string, blockNumbe
 
 func (db *DB) AuctionEndedRevert(vaultAddress, roundAddress string, blockNumber uint64) {
 	db.RevertVaultState(vaultAddress, blockNumber)
-	db.RevertAllLPState(blockNumber)
+	db.RevertAllLPState(vaultAddress, blockNumber)
 	db.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
 		"clearing_price": nil,
 		"options_sold":   nil,
@@ -44,7 +44,7 @@ func (db *DB) AuctionEndedRevert(vaultAddress, roundAddress string, blockNumber 
 
 func (db *DB) RoundSettledRevert(vaultAddress, roundAddress string, blockNumber uint64) {
 	db.RevertVaultState(vaultAddress, blockNumber)
-	db.RevertAllLPState(blockNumber)
+	db.RevertAllLPState(vaultAddress, blockNumber)
 	db.UpdateOptionRoundFields(roundAddress, map[string]interface{}{
 		"settlement_price": 0,
 		"total_payout":     0,

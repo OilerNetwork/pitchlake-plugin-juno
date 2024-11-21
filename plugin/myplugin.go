@@ -16,9 +16,9 @@ import (
 
 //go:generate go build -buildmode=plugin -o ../../build/plugin.so ./example.go
 type pitchlakePlugin struct {
-	vaultHash    string
-	vaultAddress string
-	//vaultAddresses       []string
+	vaultHash      string
+	vaultAddress   string
+	vaultAddresses []string
 	roundAddresses []string
 	udcAddress     string
 	db             *db.DB
@@ -46,19 +46,28 @@ func (p *pitchlakePlugin) Init() error {
 	if err != nil {
 		return err
 	}
-	if len(*vaultAddresses) > 0 {
-		p.vaultAddress = (*vaultAddresses)[0]
-	}
+
+	// if len(*vaultAddresses) > 0 {
+	// 	p.vaultAddress = (*vaultAddresses)[0]
+	// }
+	p.vaultAddresses = *vaultAddresses
 
 	//Make vault address multiple and add loop here to fetch rounds for each vault
 
-	if p.vaultAddress != "" {
+	// if p.vaultAddress != "" {
 
-		roundAddresses, err := p.db.GetRoundAddressess(p.vaultAddress)
+	// 	roundAddresses, err := p.db.GetRoundAddressess(p.vaultAddress)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// 	p.roundAddresses = *roundAddresses
+	// }
+	for _, vaultAddress := range p.vaultAddresses {
+		roundAddresses, err := p.db.GetRoundAddressess(vaultAddress)
 		if err != nil {
 			return err
 		}
-		p.roundAddresses = *roundAddresses
+		p.roundAddresses = append(p.roundAddresses, *roundAddresses...)
 	}
 
 	p.junoAdaptor = &adaptors.JunoAdaptor{}
@@ -90,15 +99,25 @@ func (p *pitchlakePlugin) NewBlock(
 
 			if fromAddress == p.udcAddress {
 				p.processUDC(receipt.Events, event, i, block.Number)
-			} else if fromAddress == p.vaultAddress {
-				p.processVaultEvent(fromAddress, event, block.Number)
 			} else {
-				for _, roundAddress := range p.roundAddresses {
-					if fromAddress == roundAddress {
-						p.processRoundEvent(roundAddress, event, block.Number)
+
+				flag := false
+				for _, vaultAddress := range p.vaultAddresses {
+					if fromAddress == vaultAddress {
+						p.processVaultEvent(fromAddress, event, block.Number)
+						flag = true
 						break
 					}
 				}
+				if !flag {
+					for _, roundAddress := range p.roundAddresses {
+						if fromAddress == roundAddress {
+							p.processRoundEvent(roundAddress, event, block.Number)
+							break
+						}
+					}
+				}
+
 			}
 		}
 	}
@@ -143,29 +162,44 @@ func (p *pitchlakePlugin) processUDC(
 	eventHash := adaptors.Keccak256("ContractDeployed")
 	address := adaptors.FeltToHexString(event.Data[0].Bytes())
 	classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
-	vaultAddress := os.Getenv("VAULT_ADDRESS")
-	if address == vaultAddress {
-		p.vaultAddress = address
-		vault := models.VaultState{
-			CurrentRound:    *models.NewBigInt("1"),
-			UnlockedBalance: *models.NewBigInt("0"),
-			LockedBalance:   *models.NewBigInt("0"),
-			StashedBalance:  *models.NewBigInt("0"),
-			Address:         address,
-			LatestBlock:     blockNumber,
-		}
-		if err := p.db.CreateVault(&vault); err != nil {
-			log.Fatal(err)
-			return err
-		}
-		log.Printf("index %v", index)
-		p.processVaultEvent(vaultAddress, events[index-1], blockNumber)
+	//@dev hardcoded vaultAddress registration
+	// vaultAddress := os.Getenv("VAULT_ADDRESS")
+	// if address == vaultAddress {
+	// 	p.vaultAddress = address
+	// 	vault := models.VaultState{
+	// 		CurrentRound:    *models.NewBigInt("1"),
+	// 		UnlockedBalance: *models.NewBigInt("0"),
+	// 		LockedBalance:   *models.NewBigInt("0"),
+	// 		StashedBalance:  *models.NewBigInt("0"),
+	// 		Address:         address,
+	// 		LatestBlock:     blockNumber,
+	// 	}
+	// 	if err := p.db.CreateVault(&vault); err != nil {
+	// 		log.Fatal(err)
+	// 		return err
+	// 	}
+	// 	log.Printf("index %v", index)
+	// 	p.processVaultEvent(vaultAddress, events[index-1], blockNumber)
 
-	}
+	// }
 	if eventHash == event.Keys[0].String() {
-
+		//ClassHash filter
 		if classHash == p.vaultHash {
-
+			p.vaultAddresses = append(p.vaultAddresses, address)
+			vault := models.VaultState{
+				CurrentRound:    *models.NewBigInt("1"),
+				UnlockedBalance: *models.NewBigInt("0"),
+				LockedBalance:   *models.NewBigInt("0"),
+				StashedBalance:  *models.NewBigInt("0"),
+				Address:         address,
+				LatestBlock:     blockNumber,
+			}
+			if err := p.db.CreateVault(&vault); err != nil {
+				log.Fatal(err)
+				return err
+			}
+			log.Printf("index %v", index)
+			p.processVaultEvent(address, events[index-1], blockNumber)
 		}
 
 	}
@@ -183,7 +217,6 @@ func (p *pitchlakePlugin) processVaultEvent(
 		log.Printf("Unknown Event")
 		return nil
 	}
-	log.Printf("NAME %v", eventName)
 	switch eventName {
 	case "Deposit": //Add withdrawQueue and collect queue case based on event
 		lpAddress,
