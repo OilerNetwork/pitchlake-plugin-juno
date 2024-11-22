@@ -77,25 +77,26 @@ type OptionBuyer struct {
 }
 
 type OptionRound struct {
-	VaultAddress      string `gorm:"column:vault_address;"`
-	Address           string `gorm:"column:address"`
-	RoundID           BigInt `gorm:"column:round_id;"` // Store bids as JSON in PostgreSQL
-	CapLevel          BigInt `gorm:"column:cap_level"`
-	StartDate         uint64 `gorm:"column:start_date;"`
-	EndDate           uint64 `gorm:"column:end_date;"`
-	SettlementDate    uint64 `gorm:"column:settlement_date;"`
-	StartingLiquidity BigInt `gorm:"column:starting_liquidity;"`
-	QueuedLiquidity   BigInt `gorm:"column:queued_liquidity;"`
-	AvailableOptions  BigInt `gorm:"column:available_options;"`
-	SettlementPrice   BigInt `gorm:"column:settlement_price;"`
-	StrikePrice       BigInt `gorm:"column:strike_price;"`
-	UnsoldLiquidity   BigInt `gorm:"column:unsold_liquidity;"`
-	SoldOptions       BigInt `gorm:"column:sold_options;"`
-	ReservePrice      BigInt `gorm:"column:reserve_price"`
-	ClearingPrice     BigInt `gorm:"column:clearing_price"`
-	State             string `gorm:"column:state;"`
-	Premiums          BigInt `gorm:"column:premiums;"`
-	PayoutPerOption   BigInt `gorm:"column:payout_per_option;"`
+	VaultAddress       string `gorm:"column:vault_address;"`
+	Address            string `gorm:"column:address"`
+	RoundID            BigInt `gorm:"column:round_id;"` // Store bids as JSON in PostgreSQL
+	CapLevel           BigInt `gorm:"column:cap_level"`
+	StartDate          uint64 `gorm:"column:start_date;"`
+	EndDate            uint64 `gorm:"column:end_date;"`
+	SettlementDate     uint64 `gorm:"column:settlement_date;"`
+	StartingLiquidity  BigInt `gorm:"column:starting_liquidity;"`
+	QueuedLiquidity    BigInt `gorm:"column:queued_liquidity;"`
+	AvailableOptions   BigInt `gorm:"column:available_options;"`
+	RemainingLiquidity BigInt `gorm:"column:remaining_liquidity;"`
+	SettlementPrice    BigInt `gorm:"column:settlement_price;"`
+	StrikePrice        BigInt `gorm:"column:strike_price;"`
+	UnsoldLiquidity    BigInt `gorm:"column:unsold_liquidity;"`
+	SoldOptions        BigInt `gorm:"column:sold_options;"`
+	ReservePrice       BigInt `gorm:"column:reserve_price"`
+	ClearingPrice      BigInt `gorm:"column:clearing_price"`
+	State              string `gorm:"column:state;"`
+	Premiums           BigInt `gorm:"column:premiums;"`
+	PayoutPerOption    BigInt `gorm:"column:payout_per_option;"`
 }
 
 type VaultState struct {

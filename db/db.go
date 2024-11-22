@@ -270,19 +270,19 @@ func (db *DB) GetVaultByAddress(address string) (*models.VaultState, error) {
 	return &vault, nil
 }
 
-func (db *DB) GetVaultAddresses() (*[]string, error) {
+func (db *DB) GetVaultAddresses() ([]string, error) {
 	var addresses []string
 
 	// Use Pluck to retrieve only the "address" field from the VaultState model
 	err := db.Conn.Model(&models.VaultState{}).Pluck("address", &addresses).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return &[]string{}, nil
+			return make([]string, 0), nil
 		} else {
 			return nil, err
 		}
 	}
-	return &addresses, nil
+	return addresses, nil
 }
 
 func (db *DB) GetRoundAddressess(vaultAddress string) (*[]string, error) {
