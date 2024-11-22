@@ -36,7 +36,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "6060:6060" # Adjust this port if needed
+      - "6060:6060"
 
 volumes:
   postgres_data:
