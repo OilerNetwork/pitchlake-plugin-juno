@@ -15,6 +15,7 @@ func (db *DB) DepositIndex(
 	blockNumber uint64) error {
 	//Map the other parameters as well
 	var newLPState = &(models.LiquidityProviderState{
+		VaultAddress:    vaultAddress,
 		Address:         lpAddress,
 		UnlockedBalance: lpUnlocked,
 		LatestBlock:     blockNumber,
@@ -37,7 +38,7 @@ func (db *DB) WithdrawIndex(
 	lpUnlocked, vaultUnlocked models.BigInt,
 	blockNumber uint64) error {
 	//Map the other parameters as well
-	if err := db.UpdateLiquidityProviderFields(lpAddress, map[string]interface{}{
+	if err := db.UpdateLiquidityProviderFields(vaultAddress, lpAddress, map[string]interface{}{
 		"unlocked_balance": lpUnlocked,
 		"latest_block":     blockNumber,
 	}); err != nil {
@@ -67,7 +68,6 @@ func (db *DB) WithdrawalQueuedIndex(
 		Bps:          bps,
 		QueuedAmount: accountQueuedNow,
 	}
-	log.Printf("CHECK ME %v", queuedLiquidity)
 	if err := db.UpsertQueuedLiquidity(&queuedLiquidity); err != nil {
 		return err
 	}
@@ -83,8 +83,7 @@ func (db *DB) StashWithdrawnIndex(
 	vaultAddress, lpAddress string,
 	amount, vaultBalanceNow models.BigInt,
 	blockNumber uint64) error {
-	log.Printf("WITHDRAwN")
-	if err := db.UpdateLiquidityProviderFields(lpAddress, map[string]interface{}{
+	if err := db.UpdateLiquidityProviderFields(vaultAddress, lpAddress, map[string]interface{}{
 		"stashed_balance": 0,
 		"latest_block":    blockNumber,
 	}); err != nil {
@@ -139,7 +138,7 @@ func (dbc *DB) AuctionStartedIndex(
 	}); err != nil {
 		return err
 	}
-	if err := dbc.UpdateAllLiquidityProvidersBalancesAuctionStart(blockNumber); err != nil {
+	if err := dbc.UpdateAllLiquidityProvidersBalancesAuctionStart(vaultAddress, blockNumber); err != nil {
 		return err
 	}
 	if err := dbc.UpdateVaultBalanceAuctionStart(vaultAddress, blockNumber); err != nil {
@@ -195,7 +194,6 @@ func (db *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAd
 	remainingLiquidity := models.BigInt{Int: new(big.Int).Sub(new(big.Int).Sub(prevStateOptionRound.StartingLiquidity.Int, prevStateOptionRound.UnsoldLiquidity.Int), totalPayout.Int)}
 	remainingLiquidityStashed := *models.NewBigInt("0")
 	remainingLiquidityNotStashed := models.BigInt{Int: new(big.Int).Sub(remainingLiquidity.Int, remainingLiquidityStashed.Int)}
-	log.Printf("prevStateOptionRound %v", prevStateOptionRound)
 	if prevStateOptionRound.StartingLiquidity.Cmp(remainingLiquidity.Int) != 0 && prevStateOptionRound.StartingLiquidity.Cmp(prevStateOptionRound.QueuedLiquidity.Int) != 0 {
 		remainingLiquidityStashed = models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidity.Int, prevStateOptionRound.QueuedLiquidity.Int), prevStateOptionRound.StartingLiquidity.Int)}
 	}
@@ -206,9 +204,9 @@ func (db *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAd
 		blockNumber); err != nil {
 		return err
 	}
-	log.Printf("REMAINING LIQUIDITY %v", remainingLiquidity)
 
 	if err := db.UpdateAllLiquidityProvidersBalancesOptionSettle(
+		prevStateOptionRound.VaultAddress,
 		roundAddress,
 		prevStateOptionRound.StartingLiquidity,
 		remainingLiquidity,
@@ -220,7 +218,6 @@ func (db *DB) RoundSettledIndex(prevStateOptionRound models.OptionRound, roundAd
 		return err
 	}
 
-	log.Printf("REACHED HERE %v", prevStateOptionRound)
 	if err := db.UpdateOptionRoundFields(prevStateOptionRound.Address, map[string]interface{}{
 		"settlement_price":    settlementPrice,
 		"payout_per_option":   payoutPerOption,

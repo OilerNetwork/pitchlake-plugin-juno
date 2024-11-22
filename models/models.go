@@ -57,6 +57,7 @@ type Vault struct {
 }
 
 type LiquidityProvider struct {
+	VaultAddress    string `gorm:"column:vault_address;not null"`
 	Address         string `gorm:"column:address;not null"`
 	UnlockedBalance BigInt `gorm:"column:unlocked_balance;not null"`
 	LockedBalance   BigInt `gorm:"column:locked_balance;not null"`
@@ -87,6 +88,7 @@ type OptionRound struct {
 	QueuedLiquidity   BigInt `gorm:"column:queued_liquidity;"`
 	AvailableOptions  BigInt `gorm:"column:available_options;"`
 	SettlementPrice   BigInt `gorm:"column:settlement_price;"`
+	RemainingLiquidity BigInt `gorm:"column:remaining_liquidity;"`
 	StrikePrice       BigInt `gorm:"column:strike_price;"`
 	UnsoldLiquidity   BigInt `gorm:"column:unsold_liquidity;"`
 	SoldOptions       BigInt `gorm:"column:sold_options;"`
@@ -108,6 +110,7 @@ type VaultState struct {
 }
 
 type LiquidityProviderState struct {
+	VaultAddress    string `gorm:"column:vault_address;not null"`
 	Address         string `gorm:"column:address;not null;primaryKey"`
 	UnlockedBalance BigInt `gorm:"column:unlocked_balance;not null"`
 	LockedBalance   BigInt `gorm:"column:locked_balance;not null"`

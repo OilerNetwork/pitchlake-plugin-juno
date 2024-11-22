@@ -2,13 +2,23 @@
 CREATE TABLE "Liquidity_Providers"
 (
     address character varying COLLATE pg_catalog."default" NOT NULL,
+    vault_address character varying COLLATE pg_catalog."default" NOT NULL,
     stashed_balance numeric(78,0),
     locked_balance numeric(78,0),
     unlocked_balance numeric(78,0),
     latest_block numeric(78,0),
-    CONSTRAINT "Liquidity_Providers_pkey" PRIMARY KEY (address)
+    CONSTRAINT "Liquidity_Providers_pkey" PRIMARY KEY (address, vault_address)
 );
 
+CREATE TABLE "Liquidity_Providers_Historic"
+(
+    address character varying COLLATE pg_catalog."default" NOT NULL,
+    vault_address character varying COLLATE pg_catalog."default" NOT NULL,
+    stashed_balance numeric(78,0),
+    locked_balance numeric(78,0),
+    unlocked_balance numeric(78,0),
+    block_number numeric(78,0)
+);
 CREATE TABLE "Option_Rounds"
 (
     address character varying COLLATE pg_catalog."default" NOT NULL,
@@ -26,16 +36,13 @@ CREATE TABLE "Option_Rounds"
     unsold_liquidity numeric(78,0),
     starting_liquidity numeric(78,0),
     queued_liquidity numeric(78,0),
+    remaining_liquidity numeric(78,0),
     payout_per_option numeric(78,0),
     start_date numeric(78,0),
     end_date numeric(78,0),
     settlement_date numeric(78,0),
     CONSTRAINT "Option_Rounds_pkey" PRIMARY KEY (address)
 );
-
-
-ALTER TABLE "Option_Rounds"
-    OWNER to pitchlake_user;
 
 
 -- Table: public.Queued_Liquidity
@@ -47,20 +54,12 @@ CREATE TABLE "Queued_Liquidity"
     bps numeric(78,0) NOT NULL,
     round_address character varying(67) COLLATE pg_catalog."default" NOT NULL,
     CONSTRAINT lp_round_address PRIMARY KEY (address, round_address),
-    CONSTRAINT lp_address FOREIGN KEY (address)
-        REFERENCES public."Liquidity_Providers" (address) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-        NOT VALID,
     CONSTRAINT round_address FOREIGN KEY (round_address)
         REFERENCES public."Option_Rounds" (address) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
         NOT VALID
 );
-
-ALTER TABLE IF EXISTS "Queued_Liquidity"
-    OWNER to pitchlake_user;
 
 
 -- Table: public.VaultStates
@@ -77,9 +76,13 @@ CREATE TABLE "VaultStates"
     CONSTRAINT "VaultState_pkey" PRIMARY KEY (address)
 );
 
-
-ALTER TABLE IF EXISTS "VaultStates"
-    OWNER to pitchlake_user;
+CREATE TABLE "Vault_Historic"
+(
+    unlocked_balance numeric(78,0),
+    locked_balance numeric(78,0),
+    stashed_balance numeric(78,0),
+    address character varying(67) COLLATE pg_catalog."default" NOT NULL
+);
 
 
 -- Table: public.Option_Buyers
@@ -97,10 +100,6 @@ CREATE TABLE "Option_Buyers"
 );
 
 
-ALTER TABLE "Option_Buyers"
-    OWNER to pitchlake_user;
-
-
 -- Table: public.Bids
 
 
@@ -114,10 +113,6 @@ CREATE TABLE "Bids"
     price numeric(78,0),
     CONSTRAINT round_address_bid_id PRIMARY KEY (round_address, bid_id)
 );
-
-
-ALTER TABLE "Bids"
-    OWNER to pitchlake_user;
 
 
 
