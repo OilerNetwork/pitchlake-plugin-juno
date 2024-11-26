@@ -9,11 +9,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -q -y
 
 WORKDIR /plugin
 
-COPY . .
-
-RUN git clone https://github.com/NethermindEth/juno.git &&\
-    cd juno && \
-    git checkout pitchlake/plugin-sequencer 
+COPY . . 
 RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
 
 RUN pwd
