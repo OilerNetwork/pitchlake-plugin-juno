@@ -86,8 +86,8 @@ type OptionRound struct {
 	SettlementDate     uint64 `gorm:"column:settlement_date;"`
 	StartingLiquidity  BigInt `gorm:"column:starting_liquidity;"`
 	QueuedLiquidity    BigInt `gorm:"column:queued_liquidity;"`
-	AvailableOptions   BigInt `gorm:"column:available_options;"`
 	RemainingLiquidity BigInt `gorm:"column:remaining_liquidity;"`
+	AvailableOptions   BigInt `gorm:"column:available_options;"`
 	SettlementPrice    BigInt `gorm:"column:settlement_price;"`
 	StrikePrice        BigInt `gorm:"column:strike_price;"`
 	UnsoldLiquidity    BigInt `gorm:"column:unsold_liquidity;"`
