@@ -2,7 +2,6 @@ name: Docker Build, Push and Deploy Pitchlake Indexer
 on:
   push:
     branches:
-      - indexer-cicd
       - main
 
 
