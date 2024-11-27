@@ -7,7 +7,7 @@ BEGIN
         address, vault_address, stashed_balance, locked_balance, unlocked_balance, block_number
     )
     VALUES (
-        OLD.address, OLD.vault_address, OLD.stashed_balance, OLD.locked_balance, OLD.unlocked_balance, OLD.latest_block
+        NEW.address, NEW.vault_address, NEW.stashed_balance, NEW.locked_balance, NEW.unlocked_balance, NEW.latest_block
     );
     RETURN NEW;
 END;
@@ -25,10 +25,10 @@ CREATE OR REPLACE FUNCTION public.log_vault_update()
 RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO "Vault_Historic" (
-        address, unlocked_balance, locked_balance, stashed_balance
+        address, unlocked_balance, locked_balance, stashed_balance, block_number
     )
     VALUES (
-        OLD.address, OLD.unlocked_balance, OLD.locked_balance, OLD.stashed_balance
+        NEW.address, NEW.unlocked_balance, NEW.locked_balance, NEW.stashed_balance, NEW.latest_block
     );
     RETURN NEW;
 END;
