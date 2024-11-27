@@ -13,6 +13,46 @@ func (db *DB) DepositOrWithdrawRevert(vaultAddress, lpAddress string, blockNumbe
 	db.RevertLPState(vaultAddress, lpAddress, blockNumber)
 }
 
+func (db *DB) WithdrawalQueuedRevertIndex(
+	lpAddress, vaultAddress string,
+	roundId uint64,
+	bps, accountQueuedBefore, accountQueuedNow, vaultQueuedNow models.BigInt,
+	blockNumber uint64,
+) error {
+
+	db.RevertVaultState(vaultAddress, blockNumber)
+	db.RevertLPState(vaultAddress, lpAddress, blockNumber)
+
+	vault, err := db.GetVaultByAddress(vaultAddress)
+	if err != nil {
+		return err
+	}
+	queuedLiquidity := models.QueuedLiquidity{
+		Address:      lpAddress,
+		RoundAddress: vault.CurrentRoundAddress,
+		Bps:          bps,
+		QueuedAmount: accountQueuedBefore,
+	}
+	if err := db.UpsertQueuedLiquidity(&queuedLiquidity); err != nil {
+		return err
+	}
+
+	var vaultQueued, diff models.BigInt
+	diff.Sub(accountQueuedBefore.Int, accountQueuedNow.Int)
+	diff.Abs(diff.Int)
+	if accountQueuedBefore.Cmp(accountQueuedNow.Int) < 0 {
+		vaultQueued.Sub(vaultQueuedNow.Int, diff.Int)
+	} else {
+		vaultQueued.Add(vaultQueuedNow.Int, diff.Int)
+	}
+	if err := db.UpdateOptionRoundFields(vault.CurrentRoundAddress, map[string]interface{}{
+		"queued_liquidity": vaultQueued,
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (db *DB) RoundDeployedRevert(roundAddress string) {
 
 	db.DeleteOptionRound(roundAddress)

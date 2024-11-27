@@ -211,7 +211,7 @@ func (db *DB) UpdateVaultBalancesOptionSettle(
 
 }
 func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
-	vault_address,
+	vaultAddress,
 	roundAddress string,
 	startingLiquidity,
 	remainingLiquidty,
@@ -223,7 +223,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 ) error {
 
 	//	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
-	db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND locked_balance>0").Updates(map[string]interface{}{
+	db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND locked_balance>0", vaultAddress).Updates(map[string]interface{}{
 		"locked_balance":   0,
 		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/(?::numeric-?::numeric))", remainingLiquidty, startingLiquidity, unsoldLiquidity),
 		"latest_block":     blockNumber,
@@ -235,7 +235,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	for _, queuedAmount := range queuedAmounts {
 
 		amountToAdd := &models.BigInt{Int: new(big.Int).Div(new(big.Int).Mul(remainingLiquidty.Int, queuedAmount.QueuedAmount.Int), (startingLiquidity.Int))}
-		db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND address = ?", vault_address, queuedAmount.Address).
+		db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND address = ?", vaultAddress, queuedAmount.Address).
 			Updates(map[string]interface{}{
 				"stashed_balance":  gorm.Expr("stashed_balance + ?", amountToAdd),
 				"unlocked_balance": gorm.Expr("unlocked_balance - ?", amountToAdd),
