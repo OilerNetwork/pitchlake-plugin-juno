@@ -23,10 +23,11 @@ jobs:
         with:
           go-version: 1.23.1
       
-      - name: Check Code Formatting with go fmt
+      - name: Check Code Formatting
         run: |
           echo "Checking formatting with go fmt..."
-          go fmt . || exit 1
+          go fmt ./... || exit 1
+          echo "Formatting checked successfully!"
 
       - name: Build Juno
         run: |
