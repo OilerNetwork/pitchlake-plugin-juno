@@ -13,7 +13,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v3
         with:
-          submodules: recursive
+          submodules: true
+    
+      - name: Pull & update submodules recursively
+        run: |
+          git submodule update --init --recursive
+          git submodule update --recursive --remote
 
       - name: Set Up Go
         uses: actions/setup-go@v4
@@ -24,11 +29,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libjemalloc-dev
-
-      - name: Fetch Juno Submodule
-        run: |
-          echo "Initializing Juno submodule..."
-          git submodule update --init --recursive
 
       - name: Check Code Formatting
         run: |
