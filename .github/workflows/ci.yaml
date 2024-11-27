@@ -29,6 +29,11 @@ jobs:
           go fmt ./... || exit 1
           echo "Formatting checked successfully!"
 
+      - name: Install jemalloc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libjemalloc-dev
+
       - name: Build Juno
         run: |
           echo "Building Juno..."
