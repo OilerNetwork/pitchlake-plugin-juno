@@ -24,8 +24,8 @@ jobs:
           go-version: 1.23.1
 
       - name: Install Dependency
-      run: |
-        go mod tidy
+        run: |
+          go mod tidy
       
       - name: Check Code Formatting
         run: |
