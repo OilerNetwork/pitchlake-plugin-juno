@@ -412,6 +412,24 @@ func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Even
 
 		lpAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
 		p.db.DepositOrWithdrawRevert(vaultAddress, lpAddress, blockNumber)
+	case "WithdrawalQueued":
+		lpAddress,
+			bps,
+			roundId,
+			accountQueuedBefore,
+			accountQueuedNow,
+			vaultQueuedNow := p.junoAdaptor.WithdrawalQueued(*event)
+
+		p.db.WithdrawalQueuedRevertIndex(
+			lpAddress,
+			vaultAddress,
+			roundId,
+			bps,
+			accountQueuedBefore,
+			accountQueuedNow,
+			vaultQueuedNow,
+			blockNumber,
+		)
 	case "OptionRoundDeployed":
 		roundAddress := adaptors.FeltToHexString(event.Data[2].Bytes())
 		p.db.DeleteOptionRound(roundAddress)
