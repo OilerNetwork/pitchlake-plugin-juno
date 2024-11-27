@@ -29,9 +29,9 @@ jobs:
           go fmt ./... || exit 1
           echo "Formatting checked successfully!"
 
-      - name: Install Dependency
-        run: |
-          go mod tidy
+      # - name: Install Dependency
+      #   run: |
+      #     go mod tidy
 
       - name: Install jemalloc
         run: |
