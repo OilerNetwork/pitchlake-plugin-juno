@@ -22,6 +22,11 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: 1.23.1
+      
+      - name: Check Code Formatting with go fmt
+        run: |
+          echo "Checking formatting with go fmt..."
+          go fmt -d . || exit 1
 
       - name: Build Juno
         run: |
