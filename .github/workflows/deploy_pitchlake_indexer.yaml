@@ -2,7 +2,7 @@ name: Docker Build, Push and Deploy Pitchlake Indexer
 on:
   push:
     branches:
-      - main
+      - indexer-cicd
 
 
 env:
@@ -52,18 +52,18 @@ jobs:
         with:
           mask-password: "true"
 
-      #build image   
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-        run: |
-          IMAGE_TAG=pitchlake-indexer-${{ github.sha }}
-          IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-          docker buildx build --platform=linux/amd64 -f ./Dockerfile -t $IMAGE_URI ./
-          docker push $IMAGE_URI
+      # #build image   
+      # - name: Build, tag, and push image to Amazon ECR
+      #   id: build-image
+      #   env:
+      #     ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      #     ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+      #   run: |
+      #     IMAGE_TAG=pitchlake-indexer-${{ github.sha }}
+      #     IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+      #     echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+      #     docker buildx build --platform=linux/amd64 -f ./Dockerfile -t $IMAGE_URI ./
+      #     docker push $IMAGE_URI
       
       # EC2 Deployment Steps
 
@@ -74,10 +74,10 @@ jobs:
       #     echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
       #     echo "AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }}" >> $GITHUB_ENV    
           
-      # - name: Change key permission
-      #   run: |
-      #     echo "$PRIVATE_KEY" > private_key.pem
-      #     chmod 600 private_key.pem
+      - name: Change key permission
+        run: |
+          echo "$PRIVATE_KEY" > private_key.pem
+          chmod 600 private_key.pem
       
       # # - name: verify ssh access 
       # #   run: |
@@ -113,7 +113,7 @@ jobs:
       #         AWS_REGION: ${{ env.AWS_REGION }}
       #         ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
       #         ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-      #         IMAGE_TAG: pitchlake-indexer-206236be0f1e5343ab148fa833c1368fdb47ab7a
+      #         IMAGE_TAG: pitchlake-indexer-cf96bed7afc409f769178626e0045310fd1b666d
       #         CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
       #   run: |
       #     ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
@@ -123,6 +123,18 @@ jobs:
       #       sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}     
       #       sudo docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}  
       #     "
+
+      - name: Login to AWS EC2 instance and pull image
+        env: 
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: pitchlake-indexer-cf96bed7afc409f769178626e0045310fd1b666d
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+        run: |
+          ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+            sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}     
+           "
 
       # - name: Logout from AWS ECR on EC2
       #   env:
