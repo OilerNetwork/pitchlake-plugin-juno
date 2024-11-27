@@ -20,28 +20,21 @@ jobs:
         with:
           go-version: 1.23.1
 
-      # - name: Debug Repository Contents
-      #   run: |
-      #     echo "Listing repository contents..."
-      #     ls -al
-      #     echo "Checking Juno directory..."
-      #     ls -al juno || echo "Juno directory is missing!"
+      - name: Install jemalloc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libjemalloc-dev
+
+      - name: Fetch Juno Submodule
+        run: |
+          echo "Initializing Juno submodule..."
+          git submodule update --init --recursive
 
       - name: Check Code Formatting
         run: |
           echo "Checking formatting with go fmt..."
           go fmt ./... || exit 1
           echo "Formatting checked successfully!"
-
-      # - name: Install jemalloc
-        # run: |
-        #   sudo apt-get update
-        #   sudo apt-get install -y libjemalloc-dev
-
-      - name: Fetch Juno Submodule
-        run: |
-          echo "Initializing Juno submodule..."
-          git submodule update --init --recursive
 
       - name: Build Juno
         run: |
