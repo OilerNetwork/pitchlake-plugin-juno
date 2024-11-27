@@ -5,8 +5,10 @@ go 1.23.1
 require (
 	github.com/NethermindEth/juno v0.12.2
 	github.com/golang-migrate/migrate v3.5.4+incompatible
+	github.com/stretchr/testify v1.9.0
 	golang.org/x/crypto v0.28.0
 	gorm.io/driver/postgres v1.5.9
+	gorm.io/driver/sqlite v1.5.6
 	gorm.io/gorm v1.25.12
 )
 
@@ -47,6 +49,7 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
+	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
@@ -61,7 +64,6 @@ require (
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.56.0 // indirect
 	go.opentelemetry.io/otel/trace v1.31.0 // indirect
