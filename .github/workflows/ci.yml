@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feat/ci_juno
+      - feat/ci_plugin
 
 jobs:
   build-and-test:
@@ -41,7 +41,7 @@ jobs:
           echo "Building Juno..."
           cd juno
           make juno
-          
+
       # - name: Build Plugin
       #   run: |
       #     echo "Building Juno Plugin..."
