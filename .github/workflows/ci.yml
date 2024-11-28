@@ -8,19 +8,23 @@ on:
 
 jobs:
   build-and-test:
+
+
+
+jobs:
+  build:
+    # Set the job name and specify it runs on the latest Ubuntu virtual environment
+    name: Building CI pipeline on Ubuntu OS
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      # Step to check out the code from the Git repository so that it can be used in subsequent steps
+      - name: Checkout code
         uses: actions/checkout@v2
-        with:
-          submodules: true
 
-      - name: Pull & update submodules recursively
-        run: |
-          git submodule update --init --recursive
-          # git submodule update --recursive --remote
-          ls
-          tree .
+      # Step to update any Git submodules recursively, ensuring that any dependent repositories are also up to date
+      - name: Update submodules
+        run: git submodule update --init --recursive
+            
       - name: Set Up Go
         uses: actions/setup-go@v4
         with:
