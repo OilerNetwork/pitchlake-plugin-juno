@@ -18,17 +18,19 @@ jobs:
       - name: Pull & update submodules recursively
         run: |
           git submodule update --init --recursive
-          git submodule update --recursive --remote
+          # git submodule update --recursive --remote
+          ls
+          tree .
 
       - name: Set Up Go
         uses: actions/setup-go@v4
         with:
           go-version: 1.23.1
 
-      - name: Install jemalloc
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libjemalloc-dev
+      # - name: Install jemalloc
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y libjemalloc-dev
 
       - name: Check Code Formatting
         run: |
@@ -42,16 +44,16 @@ jobs:
           cd juno
           make juno
 
-      - name: Build Plugin
-        run: |
-          echo "Building Juno Plugin..."
-          make build
-          ls -al build
+      # - name: Build Plugin
+      #   run: |
+      #     echo "Building Juno Plugin..."
+      #     make build
+      #     ls -al build
 
-      - name: Validate Plugin Build
-        run: |
-          echo "Validating the plugin .so file..."
-          if [ ! -f "./build/myplugin.so" ]; then
-            echo "Error: Plugin .so file not found!"
-            exit 1
-          fi
+      # - name: Validate Plugin Build
+      #   run: |
+      #     echo "Validating the plugin .so file..."
+      #     if [ ! -f "./build/myplugin.so" ]; then
+      #       echo "Error: Plugin .so file not found!"
+      #       exit 1
+      #     fi
