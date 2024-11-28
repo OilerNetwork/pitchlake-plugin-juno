@@ -7,11 +7,6 @@ on:
       - feat/ci_plugin
 
 jobs:
-  build-and-test:
-
-
-
-jobs:
   build:
     # Set the job name and specify it runs on the latest Ubuntu virtual environment
     name: Building CI pipeline on Ubuntu OS
@@ -24,7 +19,7 @@ jobs:
       # Step to update any Git submodules recursively, ensuring that any dependent repositories are also up to date
       - name: Update submodules
         run: git submodule update --init --recursive
-            
+
       - name: Set Up Go
         uses: actions/setup-go@v4
         with:
