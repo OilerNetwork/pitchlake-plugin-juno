@@ -68,6 +68,7 @@ jobs:
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+            aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
             sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             sudo docker run -d \
               --name ${CONTAINER_NAME} \
