@@ -8,14 +8,14 @@ env:
     AWS_REGION: eu-central-1
     ECR_REPOSITORY: pitchlake-ui-new_images_repository
     EC2_SERVICE: pitchlake-indexer-instance
-    EC2_HOST: ${{ var.EC2_HOST }}
-    EC2_USER: ${{ var.EC2_USER }}
+    EC2_HOST: ${{ vars.EC2_HOST }}
+    EC2_USER: ${{ vars.EC2_USER }}
     PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
-    APP_PORT: ${{ var.APP_PORT }}
+    APP_PORT: ${{ vars.APP_PORT }}
     CONTAINER_NAME: pitchlake_plugin_juno
     IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
-    L1_URL: ${{ var.L1_URL }}
-    DB_URL: ${{ var.DB_URL }}
+    L1_URL: ${{ vars.L1_URL }}
+    DB_URL: ${{ vars.DB_URL }}
     UDC_ADDRESS: ${{ secrets.UDC_ADDRESS }}
     VAULT_ADDRESS: ${{ secrets.VAULT_ADDRESS }}
     VAULT_HASH: ${{ secrets.VAULT_HASH }}
