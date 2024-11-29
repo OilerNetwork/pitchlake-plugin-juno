@@ -14,11 +14,10 @@ env:
     PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
     APP_PORT: ${{ vars.APP_PORT }}
     CONTAINER_NAME: pitchlake_plugin_juno
-    L1_URL: ${{ vars.L1_URL }}
-    DB_URL: ${{ vars.DB_URL }}
-    UDC_ADDRESS: ${{ secrets.UDC_ADDRESS }}
-    VAULT_ADDRESS: ${{ secrets.VAULT_ADDRESS }}
-    VAULT_HASH: ${{ secrets.VAULT_HASH }}
+    L1_URL: ${{ secrets.L1_URL }}
+    DB_URL: ${{ secrets.DB_URL }}
+    UDC_ADDRESS: ${{ vars.UDC_ADDRESS }}
+    VAULT_HASH: ${{ vars.VAULT_HASH }}
 
 permissions:
   id-token: write
