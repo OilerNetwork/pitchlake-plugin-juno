@@ -7,6 +7,7 @@ on:
 env:
     AWS_REGION: eu-central-1
     ECR_REPOSITORY: pitchlake-ui-new_images_repository
+    ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
     EC2_SERVICE: pitchlake-indexer-instance
     EC2_HOST: ${{ vars.EC2_HOST }}
     EC2_USER: ${{ vars.EC2_USER }}
@@ -53,18 +54,30 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
         with:
           mask-password: "true"
-        
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+        run: |
+          IMAGE_TAG=pitchlake-indexer-${{ github.sha }}
+          IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          docker buildx build --platform=linux/amd64 -f ./Dockerfile -t $IMAGE_URI ./
+          docker push $IMAGE_URI
+      
       - name: Change key permission
         run: |
           echo "${{ env.PRIVATE_KEY }}" > private_key.pem
           chmod 600 private_key.pem
 
-      - name: Login to AWS EC2 instance and pull image
+      - name: Login to AWS ECR from EC2 instance, pull and deploy image
         env: 
           AWS_REGION: ${{ env.AWS_REGION }}
-          ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG: pitchlake-indexer-cf96bed7afc409f769178626e0045310fd1b666d
+          IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
@@ -81,8 +94,9 @@ jobs:
               -e VAULT_ADDRESS=${{ env.VAULT_ADDRESS }} \
               -e VAULT_HASH=${{ env.VAULT_HASH }} \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+            sudo docker rmi ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
-            
+                
       - name: Cleanup private key
         run: rm private_key.pem
       
