@@ -4,19 +4,20 @@ on:
     branches:
       - main
 
-
 env:
     AWS_REGION: eu-central-1
     ECR_REPOSITORY: pitchlake-ui-new_images_repository
+    ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
     EC2_SERVICE: pitchlake-indexer-instance
-    EC2_HOST: 18.196.81.140
-    EC2_USER: ubuntu
-    PRIVATE_KEY: ${{ secrets.EC2_SSH_KEY }}
-    APP_PORT: 6060
+    EC2_HOST: ${{ vars.EC2_HOST }}
+    EC2_USER: ${{ vars.EC2_USER }}
+    PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+    APP_PORT: ${{ vars.APP_PORT }}
     CONTAINER_NAME: pitchlake_plugin_juno
-    IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
-    AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-    AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    L1_URL: ${{ secrets.L1_URL }}
+    DB_URL: ${{ secrets.DB_URL }}
+    UDC_ADDRESS: ${{ vars.UDC_ADDRESS }}
+    VAULT_HASH: ${{ vars.VAULT_HASH }}
 
 permissions:
   id-token: write
@@ -25,6 +26,7 @@ permissions:
 jobs:
   build_push_deploy:
     runs-on: ubuntu-latest
+    environment: staging
 
     steps:
       - name: Checkout repository
@@ -52,7 +54,6 @@ jobs:
         with:
           mask-password: "true"
 
-      #build image   
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
@@ -65,76 +66,46 @@ jobs:
           docker buildx build --platform=linux/amd64 -f ./Dockerfile -t $IMAGE_URI ./
           docker push $IMAGE_URI
       
-      # EC2 Deployment Steps
+      - name: Change key permission
+        run: |
+          echo "${{ env.PRIVATE_KEY }}" > private_key.pem
+          chmod 600 private_key.pem
 
-      # - name: Configure AWS environment variables
-      #   run: |
-      #     echo "Setting up environment variables for AWS credentials"
-      #     echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> $GITHUB_ENV
-      #     echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> $GITHUB_ENV
-      #     echo "AWS_SESSION_TOKEN=${{ secrets.AWS_SESSION_TOKEN }}" >> $GITHUB_ENV    
-          
-      # - name: Change key permission
-      #   run: |
-      #     echo "$PRIVATE_KEY" > private_key.pem
-      #     chmod 600 private_key.pem
+      - name: Login to AWS ECR from EC2 instance, pull and deploy image
+        env: 
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          IMAGE_TAG: pitchlake-indexer-${{ github.sha }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+        run: |
+          ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
+            curl http://169.254.169.254/latest/meta-data/iam/security-credentials/EC2ECRAccessRole
+            aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
+            sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+            sudo docker run -d \
+              --name ${CONTAINER_NAME} \
+              -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
+              -e VAULT_HASH=${{ env.VAULT_HASH }} \
+              -e L1_URL=${{ env.L1_URL }} \
+              -e DB_URL=${{ env.DB_URL }} \
+              -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
+              -e VAULT_ADDRESS=${{ env.VAULT_ADDRESS }} \
+              -e VAULT_HASH=${{ env.VAULT_HASH }} \
+              ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
+            "
       
-      # # - name: verify ssh access 
-      # #   run: |
-      # #     ssh -v -o StrictHostKeyChecking=no -i private_key ${{ env.EC2_USER }}@${{ env.EC2_HOST }} echo "SSH connection successful"
-
-      # - name: Pass AWS credentials to EC2
-      #   run: |
-      #     bash ./.github/workflows/pass-aws-credentials.sh \
-      #     "${{ secrets.EC2_USER }}" \
-      #     "${{ secrets.EC2_HOST }}" \
-      #     "private_key.pem" \
-      #     "${{ env.AWS_ACCESS_KEY_ID }}" \
-      #     "${{ env.AWS_SECRET_ACCESS_KEY }}" \
-      #     "${{ env.AWS_SESSION_TOKEN }}"
-      #   env:
-      #     AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      #     AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      #     AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
-
-      # - name: Install docker if not installed
-      #   run: |
-      #     ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-      #       if ! command -v aws &> /dev/null
-      #       then
-      #         sudo apt-get update
-      #         sudo apt-get install -y docker.io
-      #         sudo apt-get install -y docker-compose
-      #       fi
-      #     "  
-
-      # - name: Login to AWS ECR on EC2 instance
-      #   env: 
-      #         AWS_REGION: ${{ env.AWS_REGION }}
-      #         ECR_REGISTRY: 654654236251.dkr.ecr.eu-central-1.amazonaws.com
-      #         ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-      #         IMAGE_TAG: pitchlake-indexer-206236be0f1e5343ab148fa833c1368fdb47ab7a
-      #         CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
-      #   run: |
-      #     ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-      #       aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
-      #       sudo docker ps -aq | xargs -r sudo docker rm -f || true
-      #       sudo docker images -aq | xargs -r sudo docker rmi -f || true
-      #       sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}     
-      #       sudo docker run -d --name ${CONTAINER_NAME} -p ${APP_PORT}:${APP_PORT} ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}  
-      #     "
-
-      # - name: Logout from AWS ECR on EC2
-      #   env:
-      #       AWS_REGION: ${{ env.AWS_REGION }}
-      #       ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-      #   run: |
-      #       ssh -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
-      #         aws ecr get-login-password --region ${AWS_REGION} | sudo docker logout ${ECR_REGISTRY}
-      #       "
-            
-      # - name: Cleanup private key
-      #   run: rm private_key.pem
+      - name: Logout from AWS ECR on EC2
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
+            aws ecr get-login-password --region ${AWS_REGION} | sudo docker logout ${ECR_REGISTRY}
+          "
+      
+      - name: Cleanup private key
+        run: rm private_key.pem
       
 
 
