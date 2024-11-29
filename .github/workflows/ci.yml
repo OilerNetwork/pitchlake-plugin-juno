@@ -42,8 +42,8 @@ jobs:
 
       # Step to build Juno
       - name: Build Juno
-        run: |
-          go mod tidy
+        run: go mod tidy
+
 
       # Uncomment this section to build the plugin
       # - name: Build Plugin
