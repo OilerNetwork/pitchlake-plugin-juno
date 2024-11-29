@@ -81,7 +81,8 @@ CREATE TABLE "Vault_Historic"
     unlocked_balance numeric(78,0),
     locked_balance numeric(78,0),
     stashed_balance numeric(78,0),
-    address character varying(67) COLLATE pg_catalog."default" NOT NULL
+    address character varying(67) COLLATE pg_catalog."default" NOT NULL,
+    block_number numeric(78,0)
 );
 
 
