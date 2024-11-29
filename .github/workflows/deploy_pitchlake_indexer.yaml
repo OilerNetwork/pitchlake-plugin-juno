@@ -2,7 +2,7 @@ name: Docker Build, Push and Deploy Pitchlake Indexer
 on:
   push:
     branches:
-      - indexer-cicd
+      - main
 
 env:
     AWS_REGION: eu-central-1
@@ -94,9 +94,17 @@ jobs:
               -e VAULT_ADDRESS=${{ env.VAULT_ADDRESS }} \
               -e VAULT_HASH=${{ env.VAULT_HASH }} \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
-            sudo docker rmi ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
-                
+      
+      - name: Logout from AWS ECR on EC2
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+        run: |
+          ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
+            aws ecr get-login-password --region ${AWS_REGION} | sudo docker logout ${ECR_REGISTRY}
+          "
+      
       - name: Cleanup private key
         run: rm private_key.pem
       
