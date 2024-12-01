@@ -2,7 +2,7 @@ name: Docker Build, Push and Deploy Pitchlake Indexer
 on:
   push:
     branches:
-      - main
+      - indexer-cicd
 
 env:
     AWS_REGION: eu-central-1
@@ -100,7 +100,7 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
           ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
         run: |
-          ssh -o StrictHostKeyChecking=no -i private_key ${USER_NAME}@${HOSTNAME} "
+          ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
             aws ecr get-login-password --region ${AWS_REGION} | sudo docker logout ${ECR_REGISTRY}
           "
       
