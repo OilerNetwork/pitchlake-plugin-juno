@@ -2,7 +2,7 @@ name: Docker Build, Push and Deploy Pitchlake Indexer
 on:
   push:
     branches:
-      - indexer-cicd
+      - main
 
 env:
     AWS_REGION: eu-central-1
