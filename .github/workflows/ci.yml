@@ -45,16 +45,16 @@ jobs:
           cd juno
           make juno
 
-      # - name: Build Plugin
-      #   run: |
-      #     echo "Building Juno Plugin..."
-      #     make build
-      #     ls -al build
+      - name: Build Plugin
+        run: |
+          echo "Building Juno Plugin..."
+          make build
+          ls -al build
 
-      # - name: Validate Plugin Build
-      #   run: |
-      #     echo "Validating the plugin .so file..."
-      #     if [ ! -f "./build/myplugin.so" ]; then
-      #       echo "Error: Plugin .so file not found!"
-      #       exit 1
+      - name: Validate Plugin Build
+        run: |
+          echo "Validating the plugin .so file..."
+          if [ ! -f "./build/myplugin.so" ]; then
+            echo "Error: Plugin .so file not found!"
+            exit 1
       
