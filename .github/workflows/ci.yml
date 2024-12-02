@@ -38,6 +38,7 @@ jobs:
           echo "Checking formatting with go fmt..."
           go fmt ./... || exit 1
           echo "Formatting checked successfully!"
+          
       # Step to build Juno
       - name: Build Juno
         run: |
