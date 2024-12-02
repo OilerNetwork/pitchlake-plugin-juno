@@ -27,11 +27,10 @@ jobs:
         with:
           go-version: 1.23.1
 
-      # Uncomment this section if jemalloc is required
-      # - name: Install jemalloc
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y libjemalloc-dev
+      - name: Install jemalloc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libjemalloc-dev
 
       # Step to check code formatting
       - name: Check Code Formatting
@@ -46,15 +45,12 @@ jobs:
           cd juno
           make juno
 
-
-      # Uncomment this section to build the plugin
       # - name: Build Plugin
       #   run: |
       #     echo "Building Juno Plugin..."
       #     make build
       #     ls -al build
 
-      # Uncomment this section to validate the plugin build
       # - name: Validate Plugin Build
       #   run: |
       #     echo "Validating the plugin .so file..."
