@@ -17,6 +17,7 @@ RUN pwd
 RUN ls
 
 # Then build the plugin
+RUN go mod tidy
 RUN make build
 
 # Stage 2: Run Juno with the plugin
