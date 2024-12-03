@@ -85,7 +85,8 @@ jobs:
             sudo docker rmi $(sudo docker images -q)
             curl http://169.254.169.254/latest/meta-data/iam/security-credentials/EC2ECRAccessRole
             # aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
-            aws ecr get-login-password --region $AWS_REGION | sudo docker login --username AWS --password-stdin $ECR_REGISTRY >/dev/null 2>&1
+            # aws ecr get-login-password --region $AWS_REGION | sudo docker login --username AWS --password-stdin $ECR_REGISTRY >/dev/null 2>&1
+            aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY} 2>/dev/null
             # aws ecr get-login-password --region ${AWS_REGION} 2>/dev/null | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY} >/dev/null
             sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             sudo docker run -d \
