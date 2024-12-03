@@ -2,7 +2,6 @@ name: Docker Build, Push and Deploy Pitchlake Indexer
 on:
   push:
     branches:
-      - main
       - indexer-cicd
 
 env:
@@ -83,16 +82,15 @@ jobs:
           ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
             sudo docker ps -aq | xargs docker stop | xargs docker rm
             sudo docker rmi $(sudo docker images -q)
-            curl http://169.254.169.254/latest/meta-data/iam/security-credentials/EC2ECRAccessRole
             aws ecr get-login-password --region ${AWS_REGION} | sudo docker login --username AWS --password-stdin ${ECR_REGISTRY}
             sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             sudo docker run -d \
               --name ${CONTAINER_NAME} \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
               -e VAULT_HASH=${{ env.VAULT_HASH }} \
+              -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
               -e L1_URL=${{ env.L1_URL }} \
               -e DB_URL=${{ env.DB_URL }} \
-              -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
               -v $HOME/snapshots/juno_testnet:/snapshots \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
