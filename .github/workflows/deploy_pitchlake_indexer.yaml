@@ -89,8 +89,8 @@ jobs:
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
               - VAULT_HASH=${{ env.VAULT_HASH }} \
               -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
-              --secret L1_URL=${{ env.L1_URL }} \
-              --secret DB_URL=${{ env.DB_URL }} \
+              -e L1_URL=${{ env.L1_URL }} \
+              -e DB_URL=${{ env.DB_URL }} \
               -v $HOME/snapshots/juno_testnet:/snapshots \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
