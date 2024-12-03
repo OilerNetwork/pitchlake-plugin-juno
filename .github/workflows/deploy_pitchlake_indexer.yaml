@@ -78,6 +78,8 @@ jobs:
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
           IMAGE_TAG: pitchlake-indexer-3def9a97faab625c9d10a4eb504d2aa8072c4855
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+          L1_URL: ${{ secrets.L1_URL }}
+          DB_URL: ${{ secrets.DB_URL }}
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
             sudo docker ps -aq | xargs docker stop | xargs docker rm
@@ -89,8 +91,8 @@ jobs:
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
               -e VAULT_HASH=${{ env.VAULT_HASH }} \
               -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
-              -e L1_URL=${{ env.L1_URL }} \
-              -e DB_URL=${{ env.DB_URL }} \
+              -e L1_URL=${env.L1_URL} \
+              -e DB_URL=${env.DB_URL} \
               -v $HOME/snapshots/juno_testnet:/snapshots \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
