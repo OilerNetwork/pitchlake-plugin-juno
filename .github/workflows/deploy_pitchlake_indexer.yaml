@@ -90,9 +90,9 @@ jobs:
               --name ${CONTAINER_NAME} \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
               -e VAULT_HASH=${{ env.VAULT_HASH }} \
-              -e L1_URL=${{ secrets.L1_URL }} \
-              -e DB_URL=${{ env.DB_URL }} \
               -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
+              -e L1_URL=${{ env.L1_URL }} \
+              -e DB_URL=${{ env.DB_URL }} \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
       
