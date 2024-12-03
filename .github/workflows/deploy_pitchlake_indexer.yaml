@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - indexer-cicd
 
 env:
     AWS_REGION: eu-central-1
@@ -92,6 +93,7 @@ jobs:
               -e L1_URL=${{ env.L1_URL }} \
               -e DB_URL=${{ env.DB_URL }} \
               -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
+              -v $HOME/snapshots/juno_testnet:/snapshots \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
       
