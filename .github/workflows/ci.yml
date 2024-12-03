@@ -42,5 +42,5 @@ jobs:
         run: |
           echo "Building Juno..."
           cd juno
-          make build
+          make build .
       
