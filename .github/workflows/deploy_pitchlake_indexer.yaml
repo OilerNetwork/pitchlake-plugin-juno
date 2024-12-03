@@ -90,10 +90,10 @@ jobs:
               --name ${CONTAINER_NAME} \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
               -e VAULT_HASH=${{ env.VAULT_HASH }} \
-              -v $HOME/snapshots/juno_testnet:/snapshots \
               -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
               -e DB_URL=::add-mask::${DB_URL} \
               -e L1_URL=::add-mask::${L1_URL} \
+              -v $HOME/snapshots/juno_testnet:/snapshots \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
       
