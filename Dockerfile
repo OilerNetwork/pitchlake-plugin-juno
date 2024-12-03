@@ -4,7 +4,7 @@ FROM ubuntu:24.10 AS build
 ARG VM_DEBUG
 
 RUN apt-get -qq update && \
-    apt-get -qq install curl build-essential git golang upx-ucl libjemalloc-dev libjemalloc2 -y
+    apt-get -qq install curl build-essential gcc git golang upx-ucl libjemalloc-dev libbz2-dev libjemalloc2 -y
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -q -y
 
 WORKDIR /plugin
