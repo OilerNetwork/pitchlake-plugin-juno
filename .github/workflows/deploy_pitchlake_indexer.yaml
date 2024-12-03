@@ -76,7 +76,7 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
           ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
           ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-          IMAGE_TAG: pitchlake-indexer-7e25139af9b665f43511581d554c060a3d83f74f
+          IMAGE_TAG: pitchlake-indexer-3def9a97faab625c9d10a4eb504d2aa8072c4855
           CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
         run: |
           ssh -v -o StrictHostKeyChecking=no -i private_key.pem ${{ env.EC2_USER }}@${{ env.EC2_HOST }} "
