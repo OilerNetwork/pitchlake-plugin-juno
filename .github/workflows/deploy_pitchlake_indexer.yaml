@@ -88,9 +88,9 @@ jobs:
             sudo docker pull ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             sudo docker run -d \
               --name ${CONTAINER_NAME} \
-              -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
               -e VAULT_HASH=${{ env.VAULT_HASH }} \
               -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
+              -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
               -v $HOME/snapshots/juno_testnet:/snapshots \
               -e DB_URL=${DB_URL} \
               -e L1_URL=${L1_URL} \
