@@ -1,14 +1,12 @@
 name: Juno Plugin CI
 
-# Trigger the workflow on push events specifically for the 'master' branch
 on:
   push:
     branches:
       - main
-      - feat/fix_ci
-  # pull_request:
-  #   branches:
-  #     - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -27,10 +25,10 @@ jobs:
         with:
           go-version: 1.23.1
 
-      # - name: Install jemalloc
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y libjemalloc-dev
+      - name: Install jemalloc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libjemalloc-dev
 
       - name: Check Code Formatting
         run: |
@@ -42,5 +40,5 @@ jobs:
         run: |
           echo "Building Juno..."
           cd juno
-          make build .
+          make juno
       
