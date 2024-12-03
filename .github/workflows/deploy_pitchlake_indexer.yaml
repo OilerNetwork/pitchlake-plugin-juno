@@ -87,7 +87,7 @@ jobs:
             sudo docker run -d \
               --name ${CONTAINER_NAME} \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
-              - VAULT_HASH=${{ env.VAULT_HASH }} \
+              -e VAULT_HASH=${{ env.VAULT_HASH }} \
               -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
               -e L1_URL=${{ env.L1_URL }} \
               -e DB_URL=${{ env.DB_URL }} \
