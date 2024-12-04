@@ -128,12 +128,12 @@ func (p *pitchlakePlugin) NewBlock(
 			fromAddress := event.From.String()
 
 			if fromAddress == p.udcAddress {
-				p.processUDC(receipt.Events, event, i, block.Number)
+				p.processUDC(receipt.Events, event, i, block.Number, block.Timestamp)
 			} else {
 
 				//HashMap processing
 				if _, exists := p.vaultAddressesMap[fromAddress]; exists {
-					p.processVaultEvent(fromAddress, event, block.Number)
+					p.processVaultEvent(fromAddress, event, block.Number, block.Timestamp)
 				} else if _, exists := p.roundAddressesMap[fromAddress]; exists {
 					p.processRoundEvent(fromAddress, event, block.Number)
 				}
@@ -212,7 +212,9 @@ func (p *pitchlakePlugin) processUDC(
 	event *core.Event,
 	index int,
 	blockNumber uint64,
+	timestamp uint64,
 ) error {
+  
 	eventHash := adaptors.Keccak256("ContractDeployed")
 	if eventHash == event.Keys[0].String() {
 		address := adaptors.FeltToHexString(event.Data[0].Bytes())
@@ -240,13 +242,14 @@ func (p *pitchlakePlugin) processUDC(
 				RoundTransitionPeriod: roundTransitionDuration,
 				AuctionDuration:       auctionDuration,
 				RoundDuration:         roundDuration,
+				DeployementDate:       timestamp,
 			}
 			if err := p.db.CreateVault(&vault); err != nil {
 				log.Fatal(err)
 				return err
 			}
 			log.Printf("index %v", index)
-			p.processVaultEvent(address, events[index-1], blockNumber)
+			p.processVaultEvent(address, events[index-1], blockNumber, timestamp)
 		}
 
 	}
@@ -257,6 +260,7 @@ func (p *pitchlakePlugin) processVaultEvent(
 	vaultAddress string,
 	event *core.Event,
 	blockNumber uint64,
+	timestamp uint64,
 ) error {
 
 	eventName, err := adaptors.DecodeEventNameVault(event.Keys[0].String())
@@ -308,6 +312,7 @@ func (p *pitchlakePlugin) processVaultEvent(
 	case "OptionRoundDeployed":
 
 		optionRound := p.junoAdaptor.RoundDeployed(*event)
+		optionRound.DeployementDate = timestamp
 		err = p.db.RoundDeployedIndex(optionRound)
 		p.roundAddresses = append(p.roundAddresses, optionRound.Address)
 		p.roundAddressesMap[optionRound.Address] = struct{}{}
