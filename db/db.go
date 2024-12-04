@@ -334,7 +334,7 @@ func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, bl
 	// Perform upsert using GORM's Clauses with the transaction object
 	err := db.tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "address"}, {Name: "vault_address"}},
-		DoUpdates: clause.AssignmentColumns([]string{"unlocked_balance", "locked_balance", "latest_block"}),
+		DoUpdates: clause.AssignmentColumns([]string{"unlocked_balance", "latest_block"}),
 	}).Create(lp).Error
 
 	if err != nil {
