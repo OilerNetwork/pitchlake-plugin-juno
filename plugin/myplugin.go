@@ -6,6 +6,7 @@ import (
 	"junoplugin/models"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
@@ -22,10 +23,12 @@ type pitchlakePlugin struct {
 	roundAddresses    []string
 	vaultAddressesMap map[string]struct{}
 	roundAddressesMap map[string]struct{}
+	deployer          string
 	udcAddress        string
 	db                *db.DB
 	log               *log.Logger
 	junoAdaptor       *adaptors.JunoAdaptor
+	cursor            uint64
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -88,6 +91,14 @@ func (p *pitchlakePlugin) Init() error {
 
 	p.junoAdaptor = &adaptors.JunoAdaptor{}
 	p.vaultHash = os.Getenv("VAULT_HASH")
+	p.deployer = os.Getenv("DEPLOYER")
+	cursor := os.Getenv("CURSOR")
+	if cursor != "" {
+		p.cursor, err = strconv.ParseUint(cursor, 10, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	p.log = log.Default()
 
 	//Add function to catch up on vaults/rounds that are not synced to currentBlock
@@ -108,6 +119,10 @@ func (p *pitchlakePlugin) NewBlock(
 
 	p.db.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
+	if block.Number < p.cursor {
+		log.Printf("Pre-cursor block")
+		return nil
+	}
 	for _, receipt := range block.Receipts {
 		for i, event := range receipt.Events {
 			fromAddress := event.From.String()
@@ -199,40 +214,32 @@ func (p *pitchlakePlugin) processUDC(
 	blockNumber uint64,
 ) error {
 	eventHash := adaptors.Keccak256("ContractDeployed")
-	address := adaptors.FeltToHexString(event.Data[0].Bytes())
-	classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
-	//@dev hardcoded vaultAddress registration
-	// vaultAddress := os.Getenv("VAULT_ADDRESS")
-	// if address == vaultAddress {
-	// 	p.vaultAddress = address
-	// 	vault := models.VaultState{
-	// 		CurrentRound:    *models.NewBigInt("1"),
-	// 		UnlockedBalance: *models.NewBigInt("0"),
-	// 		LockedBalance:   *models.NewBigInt("0"),
-	// 		StashedBalance:  *models.NewBigInt("0"),
-	// 		Address:         address,
-	// 		LatestBlock:     blockNumber,
-	// 	}
-	// 	if err := p.db.CreateVault(&vault); err != nil {
-	// 		log.Fatal(err)
-	// 		return err
-	// 	}
-	// 	log.Printf("index %v", index)
-	// 	p.processVaultEvent(vaultAddress, events[index-1], blockNumber)
-
-	// }
 	if eventHash == event.Keys[0].String() {
-		//ClassHash filter
-		if classHash == p.vaultHash {
+		address := adaptors.FeltToHexString(event.Data[0].Bytes())
+		deployer := adaptors.FeltToHexString(event.Data[1].Bytes())
+		classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
+
+		//ClassHash and deployer filter, may use other filters here
+
+		if classHash == p.vaultHash && deployer == p.deployer {
+			fossilClientAddress, ethAddress, optionRoundClassHash, alpha, strikeLevel, roundTransitionDuration, auctionDuration, roundDuration := p.junoAdaptor.ContractDeployed(*event)
 			p.vaultAddresses = append(p.vaultAddresses, address)
 			p.vaultAddressesMap[address] = struct{}{}
 			vault := models.VaultState{
-				CurrentRound:    *models.NewBigInt("1"),
-				UnlockedBalance: *models.NewBigInt("0"),
-				LockedBalance:   *models.NewBigInt("0"),
-				StashedBalance:  *models.NewBigInt("0"),
-				Address:         address,
-				LatestBlock:     blockNumber,
+				CurrentRound:          *models.NewBigInt("1"),
+				UnlockedBalance:       *models.NewBigInt("0"),
+				LockedBalance:         *models.NewBigInt("0"),
+				StashedBalance:        *models.NewBigInt("0"),
+				Address:               address,
+				LatestBlock:           blockNumber,
+				FossilClientAddress:   fossilClientAddress,
+				EthAddress:            ethAddress,
+				OptionRoundClassHash:  optionRoundClassHash,
+				Alpha:                 alpha,
+				StrikeLevel:           strikeLevel,
+				RoundTransitionPeriod: roundTransitionDuration,
+				AuctionDuration:       auctionDuration,
+				RoundDuration:         roundDuration,
 			}
 			if err := p.db.CreateVault(&vault); err != nil {
 				log.Fatal(err)
