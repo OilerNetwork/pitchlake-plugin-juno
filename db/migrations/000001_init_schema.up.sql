@@ -80,6 +80,7 @@ CREATE TABLE "VaultStates"
     round_transition_period numeric(78,0),
     auction_duration numeric(78,0),
     round_duration numeric(78,0),
+    deployement_date numeric(78,0),
     
     CONSTRAINT "VaultState_pkey" PRIMARY KEY (address)
 );

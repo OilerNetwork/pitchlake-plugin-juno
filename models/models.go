@@ -115,6 +115,7 @@ type VaultState struct {
 	RoundTransitionPeriod uint64 `gorm:"column:round_transition_period;"`
 	AuctionDuration       uint64 `gorm:"column:auction_duration;"`
 	RoundDuration         uint64 `gorm:"column:round_duration;"`
+	DeployementDate       uint64 `gorm:"column:deployement_date;"`
 }
 
 type LiquidityProviderState struct {

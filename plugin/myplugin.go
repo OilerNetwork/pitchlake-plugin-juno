@@ -128,7 +128,7 @@ func (p *pitchlakePlugin) NewBlock(
 			fromAddress := event.From.String()
 
 			if fromAddress == p.udcAddress {
-				p.processUDC(receipt.Events, event, i, block.Number)
+				p.processUDC(receipt.Events, event, i, block.Number, block.Timestamp)
 			} else {
 
 				//HashMap processing
@@ -212,7 +212,9 @@ func (p *pitchlakePlugin) processUDC(
 	event *core.Event,
 	index int,
 	blockNumber uint64,
+	timestamp uint64,
 ) error {
+
 	eventHash := adaptors.Keccak256("ContractDeployed")
 	if eventHash == event.Keys[0].String() {
 		address := adaptors.FeltToHexString(event.Data[0].Bytes())
@@ -240,6 +242,7 @@ func (p *pitchlakePlugin) processUDC(
 				RoundTransitionPeriod: roundTransitionDuration,
 				AuctionDuration:       auctionDuration,
 				RoundDuration:         roundDuration,
+				DeployementDate:       timestamp,
 			}
 			if err := p.db.CreateVault(&vault); err != nil {
 				log.Fatal(err)
