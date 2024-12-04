@@ -6,6 +6,7 @@ import (
 	"junoplugin/models"
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/NethermindEth/juno/core"
 	"github.com/NethermindEth/juno/core/felt"
@@ -27,6 +28,7 @@ type pitchlakePlugin struct {
 	db                *db.DB
 	log               *log.Logger
 	junoAdaptor       *adaptors.JunoAdaptor
+	cursor            uint64
 }
 
 // Important: "JunoPluginInstance" needs to be exported for Juno to load the plugin correctly
@@ -90,6 +92,13 @@ func (p *pitchlakePlugin) Init() error {
 	p.junoAdaptor = &adaptors.JunoAdaptor{}
 	p.vaultHash = os.Getenv("VAULT_HASH")
 	p.deployer = os.Getenv("DEPLOYER")
+	cursor := os.Getenv("CURSOR")
+	if cursor != "" {
+		p.cursor, err = strconv.ParseUint(cursor, 10, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	p.log = log.Default()
 
 	//Add function to catch up on vaults/rounds that are not synced to currentBlock
@@ -110,6 +119,10 @@ func (p *pitchlakePlugin) NewBlock(
 
 	p.db.Begin()
 	p.log.Println("ExamplePlugin NewBlock called")
+	if block.Number < p.cursor {
+		log.Printf("Pre-cursor block")
+		return nil
+	}
 	for _, receipt := range block.Receipts {
 		for i, event := range receipt.Events {
 			fromAddress := event.From.String()
