@@ -199,40 +199,31 @@ func (p *pitchlakePlugin) processUDC(
 	blockNumber uint64,
 ) error {
 	eventHash := adaptors.Keccak256("ContractDeployed")
-	address := adaptors.FeltToHexString(event.Data[0].Bytes())
-	classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
-	//@dev hardcoded vaultAddress registration
-	// vaultAddress := os.Getenv("VAULT_ADDRESS")
-	// if address == vaultAddress {
-	// 	p.vaultAddress = address
-	// 	vault := models.VaultState{
-	// 		CurrentRound:    *models.NewBigInt("1"),
-	// 		UnlockedBalance: *models.NewBigInt("0"),
-	// 		LockedBalance:   *models.NewBigInt("0"),
-	// 		StashedBalance:  *models.NewBigInt("0"),
-	// 		Address:         address,
-	// 		LatestBlock:     blockNumber,
-	// 	}
-	// 	if err := p.db.CreateVault(&vault); err != nil {
-	// 		log.Fatal(err)
-	// 		return err
-	// 	}
-	// 	log.Printf("index %v", index)
-	// 	p.processVaultEvent(vaultAddress, events[index-1], blockNumber)
-
-	// }
 	if eventHash == event.Keys[0].String() {
-		//ClassHash filter
+		address := adaptors.FeltToHexString(event.Data[0].Bytes())
+		//deployer := adaptors.FeltToHexString(event.Data[1].Bytes())
+		classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
+
+		//ClassHash filter, may use other filters
 		if classHash == p.vaultHash {
+			fossilClientAddress, ethAddress, optionRoundClassHash, alpha, strikeLevel, roundTransitionDuration, auctionDuration, roundDuration := p.junoAdaptor.ContractDeployed(*event)
 			p.vaultAddresses = append(p.vaultAddresses, address)
 			p.vaultAddressesMap[address] = struct{}{}
 			vault := models.VaultState{
-				CurrentRound:    *models.NewBigInt("1"),
-				UnlockedBalance: *models.NewBigInt("0"),
-				LockedBalance:   *models.NewBigInt("0"),
-				StashedBalance:  *models.NewBigInt("0"),
-				Address:         address,
-				LatestBlock:     blockNumber,
+				CurrentRound:          *models.NewBigInt("1"),
+				UnlockedBalance:       *models.NewBigInt("0"),
+				LockedBalance:         *models.NewBigInt("0"),
+				StashedBalance:        *models.NewBigInt("0"),
+				Address:               address,
+				LatestBlock:           blockNumber,
+				FossilClientAddress:   fossilClientAddress,
+				EthAddress:            ethAddress,
+				OptionRoundClassHash:  optionRoundClassHash,
+				Alpha:                 alpha,
+				StrikeLevel:           strikeLevel,
+				RoundTransitionPeriod: roundTransitionDuration,
+				AuctionDuration:       auctionDuration,
+				RoundDuration:         roundDuration,
 			}
 			if err := p.db.CreateVault(&vault); err != nil {
 				log.Fatal(err)

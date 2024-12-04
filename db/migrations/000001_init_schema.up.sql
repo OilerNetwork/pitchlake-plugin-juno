@@ -72,7 +72,15 @@ CREATE TABLE "VaultStates"
     stashed_balance numeric(78,0),
     address character varying(67) COLLATE pg_catalog."default" NOT NULL,
     latest_block numeric(78,0),
-    current_round numeric(78,0),
+    fossil_client_address character varying(67) COLLATE pg_catalog."default",
+    eth_address character varying(67) COLLATE pg_catalog."default",
+    option_round_class_hash character varying(67) COLLATE pg_catalog."default",
+    alpha numeric(78,0),
+    strike_level numeric(78,0),
+    round_transition_period numeric(78,0),
+    auction_duration numeric(78,0),
+    round_duration numeric(78,0),
+    
     CONSTRAINT "VaultState_pkey" PRIMARY KEY (address)
 );
 
