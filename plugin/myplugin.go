@@ -22,6 +22,7 @@ type pitchlakePlugin struct {
 	roundAddresses    []string
 	vaultAddressesMap map[string]struct{}
 	roundAddressesMap map[string]struct{}
+	deployer          string
 	udcAddress        string
 	db                *db.DB
 	log               *log.Logger
@@ -88,6 +89,7 @@ func (p *pitchlakePlugin) Init() error {
 
 	p.junoAdaptor = &adaptors.JunoAdaptor{}
 	p.vaultHash = os.Getenv("VAULT_HASH")
+	p.deployer = os.Getenv("DEPLOYER")
 	p.log = log.Default()
 
 	//Add function to catch up on vaults/rounds that are not synced to currentBlock
@@ -201,11 +203,12 @@ func (p *pitchlakePlugin) processUDC(
 	eventHash := adaptors.Keccak256("ContractDeployed")
 	if eventHash == event.Keys[0].String() {
 		address := adaptors.FeltToHexString(event.Data[0].Bytes())
-		//deployer := adaptors.FeltToHexString(event.Data[1].Bytes())
+		deployer := adaptors.FeltToHexString(event.Data[1].Bytes())
 		classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
 
-		//ClassHash filter, may use other filters
-		if classHash == p.vaultHash {
+		//ClassHash and deployer filter, may use other filters here
+
+		if classHash == p.vaultHash && deployer == p.deployer {
 			fossilClientAddress, ethAddress, optionRoundClassHash, alpha, strikeLevel, roundTransitionDuration, auctionDuration, roundDuration := p.junoAdaptor.ContractDeployed(*event)
 			p.vaultAddresses = append(p.vaultAddresses, address)
 			p.vaultAddressesMap[address] = struct{}{}
