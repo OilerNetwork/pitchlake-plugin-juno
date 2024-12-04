@@ -97,6 +97,7 @@ type OptionRound struct {
 	State              string `gorm:"column:state;"`
 	Premiums           BigInt `gorm:"column:premiums;"`
 	PayoutPerOption    BigInt `gorm:"column:payout_per_option;"`
+	DeployementDate    uint64 `gorm:"column:deployement_date;"`
 }
 
 type VaultState struct {

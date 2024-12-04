@@ -106,6 +106,7 @@ CREATE TABLE "Option_Buyers"
     has_refunded boolean NOT NULL DEFAULT false,
     mintable_options numeric(78,0),
     refundable_amount numeric(78,0),
+    deployement_date numeric(78,0),
     CONSTRAINT buyer_round PRIMARY KEY (address, round_address)
 );
 
