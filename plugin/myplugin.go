@@ -214,7 +214,7 @@ func (p *pitchlakePlugin) processUDC(
 	blockNumber uint64,
 	timestamp uint64,
 ) error {
-
+  
 	eventHash := adaptors.Keccak256("ContractDeployed")
 	if eventHash == event.Keys[0].String() {
 		address := adaptors.FeltToHexString(event.Data[0].Bytes())
