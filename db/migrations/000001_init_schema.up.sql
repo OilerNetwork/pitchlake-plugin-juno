@@ -68,6 +68,7 @@ CREATE TABLE "VaultStates"
 (
     unlocked_balance numeric(78,0),
     locked_balance numeric(78,0),
+    current_round numeric(78,0) NOT NULL,
     current_round_address character varying(67) COLLATE pg_catalog."default",
     stashed_balance numeric(78,0),
     address character varying(67) COLLATE pg_catalog."default" NOT NULL,
