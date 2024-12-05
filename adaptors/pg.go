@@ -13,14 +13,14 @@ type JunoAdaptor struct {
 
 func (p *JunoAdaptor) ContractDeployed(event core.Event) (string, string, string, models.BigInt, models.BigInt, uint64, uint64, uint64) {
 
-	fossilClientAddress := FeltToHexString(event.Data[4].Bytes())
-	ethAddress := FeltToHexString(event.Data[5].Bytes())
-	optionRoundClassHash := FeltToHexString(event.Data[6].Bytes())
-	alpha := FeltToBigInt(event.Data[7].Bytes())
-	strikeLevel := FeltToBigInt(event.Data[8].Bytes())
-	roundTransitionDuration := event.Data[9].Uint64()
-	auctionDuration := event.Data[10].Uint64()
-	roundDuration := event.Data[11].Uint64()
+	fossilClientAddress := FeltToHexString(event.Data[5].Bytes())
+	ethAddress := FeltToHexString(event.Data[6].Bytes())
+	optionRoundClassHash := FeltToHexString(event.Data[7].Bytes())
+	alpha := FeltToBigInt(event.Data[8].Bytes())
+	strikeLevel := FeltToBigInt(event.Data[9].Bytes())
+	roundTransitionDuration := event.Data[10].Uint64()
+	auctionDuration := event.Data[11].Uint64()
+	roundDuration := event.Data[12].Uint64()
 	return fossilClientAddress,
 		ethAddress,
 		optionRoundClassHash,
