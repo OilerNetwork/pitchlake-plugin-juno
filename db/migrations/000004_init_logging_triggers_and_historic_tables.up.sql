@@ -8,7 +8,12 @@ BEGIN
     )
     VALUES (
         NEW.address, NEW.vault_address, NEW.stashed_balance, NEW.locked_balance, NEW.unlocked_balance, NEW.latest_block
-    );
+    )
+    ON CONFLICT (address, block_number)
+    DO UPDATE SET
+        stashed_balance = EXCLUDED.stashed_balance,
+        locked_balance = EXCLUDED.locked_balance,
+        unlocked_balance = EXCLUDED.unlocked_balance;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -29,11 +34,15 @@ BEGIN
     )
     VALUES (
         NEW.address, NEW.unlocked_balance, NEW.locked_balance, NEW.stashed_balance, NEW.latest_block
-    );
+    )
+    ON CONFLICT (address, block_number)
+    DO UPDATE SET
+        unlocked_balance = EXCLUDED.unlocked_balance,
+        locked_balance = EXCLUDED.locked_balance,
+        stashed_balance = EXCLUDED.stashed_balance;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger for VaultStates
 CREATE TRIGGER vault_log_update
 AFTER UPDATE
