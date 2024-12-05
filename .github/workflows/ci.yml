@@ -4,10 +4,9 @@ on:
   push:
     branches:
       - main
-      - feat/fix_ci
-  # pull_request:
-  #   branches:
-  #     - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -58,6 +57,4 @@ jobs:
           cd juno
           source $HOME/.cargo/env
           make juno
-        env:
-          VM_DEBUG: 1
       
