@@ -4,17 +4,17 @@ FROM ubuntu:24.10 AS build
 ARG VM_DEBUG
 
 RUN apt-get -qq update && \
-    apt-get -qq install curl build-essential gcc git golang upx-ucl libjemalloc-dev libbz2-dev libjemalloc2 -y
+    apt-get -qq install curl build-essential git golang upx-ucl libjemalloc-dev libjemalloc2 -y
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -q -y
 
 WORKDIR /plugin
 
-COPY . . 
-RUN git submodule update --init --remote --recursive
-RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
+COPY . .
 
-RUN pwd
-RUN ls
+RUN git clone https://github.com/NethermindEth/juno.git &&\
+    cd juno && \
+    git checkout pitchlake/plugin-sequencer 
+RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
 
 # Then build the plugin
 RUN make build
@@ -33,6 +33,7 @@ ENV L1_URL=${L1_URL}
 COPY --from=build /plugin/db/migrations ./db/migrations
 COPY --from=build /plugin/juno/build/juno ./build/
 COPY --from=build /plugin/myplugin.so ./
+COPY --from=build /plugin/juno/genesis ./genesis
 
 
 # Run Juno with the plugin
