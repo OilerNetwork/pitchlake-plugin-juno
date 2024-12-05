@@ -18,9 +18,6 @@ import (
 //go:generate go build -buildmode=plugin -o ../../build/plugin.so ./example.go
 type pitchlakePlugin struct {
 	vaultHash         string
-	vaultAddress      string
-	vaultAddresses    []string
-	roundAddresses    []string
 	vaultAddressesMap map[string]struct{}
 	roundAddressesMap map[string]struct{}
 	deployer          string
@@ -41,13 +38,10 @@ func (p *pitchlakePlugin) Init() error {
 	dbUrl := os.Getenv("DB_URL")
 	udcAddress := os.Getenv("UDC_ADDRESS")
 	p.udcAddress = udcAddress
-	p.roundAddresses = make([]string, 0)
-	p.vaultAddresses = make([]string, 0)
 	p.vaultAddressesMap = make(map[string]struct{})
 	p.roundAddressesMap = make(map[string]struct{})
 	dbClient, err := db.Init(dbUrl)
 	if err != nil {
-		log.Fatalf("Failed to initialise db: %v", err)
 		return err
 	}
 	p.db = dbClient
@@ -59,34 +53,14 @@ func (p *pitchlakePlugin) Init() error {
 	//Map
 	for _, vaultAddress := range vaultAddresses {
 		p.vaultAddressesMap[vaultAddress] = struct{}{}
-	}
-
-	//Array
-	p.vaultAddresses = append(p.vaultAddresses, vaultAddresses...)
-
-	//Make vault address multiple and add loop here to fetch rounds for each vault
-
-	// if p.vaultAddress != "" {
-
-	// 	roundAddresses, err := p.db.GetRoundAddressess(p.vaultAddress)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	p.roundAddresses = *roundAddresses
-	// }
-	for _, vaultAddress := range p.vaultAddresses {
 		roundAddresses, err := p.db.GetRoundAddressess(vaultAddress)
 		if err != nil {
 			return err
 		}
-
 		//Round Address Map
 		for _, roundAddress := range *roundAddresses {
 			p.roundAddressesMap[roundAddress] = struct{}{}
 		}
-
-		//Round Address array
-		p.roundAddresses = append(p.roundAddresses, *roundAddresses...)
 	}
 
 	p.junoAdaptor = &adaptors.JunoAdaptor{}
@@ -96,7 +70,7 @@ func (p *pitchlakePlugin) Init() error {
 	if cursor != "" {
 		p.cursor, err = strconv.ParseUint(cursor, 10, 64)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
 	p.log = log.Default()
@@ -123,39 +97,25 @@ func (p *pitchlakePlugin) NewBlock(
 		log.Printf("Pre-cursor block")
 		return nil
 	}
+
+	var err error
 	for _, receipt := range block.Receipts {
 		for i, event := range receipt.Events {
 			fromAddress := event.From.String()
 
 			if fromAddress == p.udcAddress {
-				p.processUDC(receipt.Events, event, i, block.Number, block.Timestamp)
+				err = p.processUDC(receipt.Events, event, i, block.Number, block.Timestamp)
 			} else {
 
 				//HashMap processing
 				if _, exists := p.vaultAddressesMap[fromAddress]; exists {
-					p.processVaultEvent(fromAddress, event, block.Number, block.Timestamp)
+					err = p.processVaultEvent(fromAddress, event, block.Number, block.Timestamp)
 				} else if _, exists := p.roundAddressesMap[fromAddress]; exists {
-					p.processRoundEvent(fromAddress, event, block.Number)
+					err = p.processRoundEvent(fromAddress, event, block.Number)
 				}
-
-				//Array processing
-				// flag := false
-				// for _, vaultAddress := range p.vaultAddresses {
-				// 	if fromAddress == vaultAddress {
-				// 		p.processVaultEvent(fromAddress, event, block.Number)
-				// 		flag = true
-				// 		break
-				// 	}
-				// }
-				// if !flag {
-				// 	for _, roundAddress := range p.roundAddresses {
-				// 		if fromAddress == roundAddress {
-				// 			p.processRoundEvent(roundAddress, event, block.Number)
-				// 			break
-				// 		}
-				// 	}
-				// }
-
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -170,6 +130,7 @@ func (p *pitchlakePlugin) RevertBlock(
 ) error {
 	p.db.Begin()
 	length := len(from.Block.Receipts)
+	var err error
 	for i := length - 1; i >= 0; i-- {
 		receipt := from.Block.Receipts[i]
 		for _, event := range receipt.Events {
@@ -178,29 +139,13 @@ func (p *pitchlakePlugin) RevertBlock(
 
 			//HashMap
 			if _, exists := p.vaultAddressesMap[fromAddress]; exists {
-				p.revertVaultEvent(fromAddress, event, from.Block.Number)
+				err = p.revertVaultEvent(fromAddress, event, from.Block.Number)
 			} else if _, exists := p.roundAddressesMap[fromAddress]; exists {
-				p.revertRoundEvent(fromAddress, event, from.Block.Number)
+				err = p.revertRoundEvent(fromAddress, event, from.Block.Number)
 			}
-
-			//Array
-			// flag := false
-			// for _, vaultAddress := range p.vaultAddresses {
-			// 	if fromAddress == vaultAddress {
-			// 		p.revertRoundEvent(fromAddress, event, from.Block.Number)
-			// 		flag = true
-			// 		break
-			// 	}
-			// }
-			// if !flag {
-			// 	for _, roundAddress := range p.roundAddresses {
-			// 		if fromAddress == roundAddress {
-			// 			p.revertRoundEvent(roundAddress, event, from.Block.Number)
-			// 			break
-			// 		}
-			// 	}
-			// }
-
+			if err != nil {
+				return err
+			}
 		}
 	}
 	p.db.Commit()
@@ -225,7 +170,6 @@ func (p *pitchlakePlugin) processUDC(
 
 		if classHash == p.vaultHash && deployer == p.deployer {
 			fossilClientAddress, ethAddress, optionRoundClassHash, alpha, strikeLevel, roundTransitionDuration, auctionDuration, roundDuration := p.junoAdaptor.ContractDeployed(*event)
-			p.vaultAddresses = append(p.vaultAddresses, address)
 			p.vaultAddressesMap[address] = struct{}{}
 			vault := models.VaultState{
 				CurrentRound:          *models.NewBigInt("1"),
@@ -245,11 +189,12 @@ func (p *pitchlakePlugin) processUDC(
 				DeploymentDate:        timestamp,
 			}
 			if err := p.db.CreateVault(&vault); err != nil {
-				log.Fatal(err)
 				return err
 			}
 			log.Printf("index %v", index)
-			p.processVaultEvent(address, events[index-1], blockNumber, timestamp)
+			if err := p.processVaultEvent(address, events[index-1], blockNumber, timestamp); err != nil {
+				return err
+			}
 		}
 
 	}
@@ -314,7 +259,6 @@ func (p *pitchlakePlugin) processVaultEvent(
 		optionRound := p.junoAdaptor.RoundDeployed(*event)
 		optionRound.DeploymentDate = timestamp
 		err = p.db.RoundDeployedIndex(optionRound)
-		p.roundAddresses = append(p.roundAddresses, optionRound.Address)
 		p.roundAddressesMap[optionRound.Address] = struct{}{}
 	}
 	if err != nil {
@@ -329,7 +273,7 @@ func (p *pitchlakePlugin) processRoundEvent(
 	blockNumber uint64,
 ) error {
 	var err error
-	prevStateOptionRound := p.db.GetOptionRoundByAddress(roundAddress)
+	prevStateOptionRound, err := p.db.GetOptionRoundByAddress(roundAddress)
 	if err != nil {
 		return err
 	}
@@ -360,7 +304,7 @@ func (p *pitchlakePlugin) processRoundEvent(
 			premiums := p.junoAdaptor.AuctionEnded(*event)
 
 		err = p.db.AuctionEndedIndex(
-			prevStateOptionRound,
+			*prevStateOptionRound,
 			roundAddress,
 			blockNumber,
 			clearingNonce,
@@ -372,14 +316,14 @@ func (p *pitchlakePlugin) processRoundEvent(
 	case "OptionRoundSettled":
 		settlementPrice, payoutPerOption := p.junoAdaptor.RoundSettled(*event)
 		if err := p.db.RoundSettledIndex(
-			prevStateOptionRound,
+			*prevStateOptionRound,
 			roundAddress,
 			blockNumber,
 			settlementPrice,
 			prevStateOptionRound.SoldOptions,
 			payoutPerOption,
 		); err != nil {
-			log.Fatal(err)
+			return err
 		}
 	case "BidPlaced":
 		bid, buyer := p.junoAdaptor.BidPlaced(*event)
@@ -415,7 +359,6 @@ func (p *pitchlakePlugin) processRoundEvent(
 func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Event, blockNumber uint64) error {
 	eventName, err := adaptors.DecodeEventNameVault(event.Keys[0].String())
 	if err != nil {
-		log.Fatalf("Failed to decode event: %v", err)
 		return err
 	}
 	switch eventName {
@@ -423,7 +366,7 @@ func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Even
 		"StashWithdrawn": //Add withdraw queue
 
 		lpAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
-		p.db.DepositOrWithdrawRevert(vaultAddress, lpAddress, blockNumber)
+		err = p.db.DepositOrWithdrawRevert(vaultAddress, lpAddress, blockNumber)
 	case "WithdrawalQueued":
 		lpAddress,
 			bps,
@@ -432,7 +375,7 @@ func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Even
 			accountQueuedNow,
 			vaultQueuedNow := p.junoAdaptor.WithdrawalQueued(*event)
 
-		p.db.WithdrawalQueuedRevertIndex(
+		err = p.db.WithdrawalQueuedRevertIndex(
 			lpAddress,
 			vaultAddress,
 			roundId,
@@ -444,7 +387,10 @@ func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Even
 		)
 	case "OptionRoundDeployed":
 		roundAddress := adaptors.FeltToHexString(event.Data[2].Bytes())
-		p.db.DeleteOptionRound(roundAddress)
+		err = p.db.DeleteOptionRound(roundAddress)
+	}
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -453,27 +399,29 @@ func (p *pitchlakePlugin) revertVaultEvent(vaultAddress string, event *core.Even
 func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Event, blockNumber uint64) error {
 	eventName, err := adaptors.DecodeEventNameRound(event.Keys[0].String())
 	if err != nil {
-		log.Fatalf("Failed to decode event: %v", err)
 		return err
 	}
-	prevStateOptionRound := p.db.GetOptionRoundByAddress(roundAddress)
+	prevStateOptionRound, err := p.db.GetOptionRoundByAddress(roundAddress)
+	if err != nil {
+		return err
+	}
 	switch eventName {
 	case "AuctionStarted":
-		p.db.AuctionStartedRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
+		err = p.db.AuctionStartedRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
 	case "AuctionEnded":
-		p.db.AuctionEndedRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
+		err = p.db.AuctionEndedRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
 
 	case "OptionRoundSettled":
-		p.db.RoundSettledRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
+		err = p.db.RoundSettledRevert(prevStateOptionRound.VaultAddress, roundAddress, blockNumber)
 	case "BidAccepted":
 		id := event.Data[1].String()
-		p.db.BidAcceptedRevert(id, roundAddress)
+		err = p.db.BidAcceptedRevert(id, roundAddress)
 	case "BidUpdated":
 		bidId, amount, treeNonceOld, _ := p.junoAdaptor.BidUpdated(*event)
 		p.db.BidUpdatedRevert(bidId, amount, treeNonceOld)
 	case "OptionsMinted", "OptionsExercised":
 		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
-		p.db.UpdateOptionBuyerFields(
+		err = p.db.UpdateOptionBuyerFields(
 			buyerAddress,
 			roundAddress,
 			map[string]interface{}{
@@ -481,7 +429,7 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 			})
 	case "UnusedBidsRefunded":
 		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
-		p.db.UpdateOptionBuyerFields(
+		err = p.db.UpdateOptionBuyerFields(
 			buyerAddress,
 			roundAddress,
 			map[string]interface{}{
@@ -490,6 +438,9 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 
 	case "Transfer":
 	}
-
+	if err != nil {
+		return err
+	}
+	return nil
 	return nil
 }

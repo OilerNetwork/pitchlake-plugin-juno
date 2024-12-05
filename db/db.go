@@ -24,7 +24,6 @@ func Init(dsn string) (*DB, error) {
 	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
 
 	if err != nil {
-		log.Fatalf("Failed to connect to the database: %v", err)
 		return nil, err
 	}
 
@@ -33,11 +32,11 @@ func Init(dsn string) (*DB, error) {
 		dsn)
 	if err != nil {
 		log.Printf("FAIlED HERE 1")
-		log.Fatal(err)
+		return nil, err
 	}
 	if err := m.Up(); err != nil {
 		if err != migrate.ErrNoChange {
-			log.Fatal(err)
+			return nil, err
 		}
 
 	}
@@ -358,12 +357,12 @@ func (db *DB) UpdateAllOptionBuyerFields(roundAddress string, updates map[string
 	return db.tx.Model(models.OptionRound{}).Where("round_address=?", roundAddress).Updates(updates).Error
 }
 
-func (db *DB) GetOptionRoundByAddress(address string) models.OptionRound {
+func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, error) {
 	var or models.OptionRound
 	if err := db.tx.Where("address = ?", address).First(&or).Error; err != nil {
-		log.Fatal("Round Not Found")
+		return nil, err
 	}
-	return or
+	return &or, nil
 }
 
 func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
