@@ -114,7 +114,7 @@ func (p *pitchlakePlugin) NewBlock(
 					err = p.processRoundEvent(fromAddress, event, block.Number)
 				}
 				if err != nil {
-					return err
+					log.Fatal(err)
 				}
 			}
 		}
@@ -144,7 +144,7 @@ func (p *pitchlakePlugin) RevertBlock(
 				err = p.revertRoundEvent(fromAddress, event, from.Block.Number)
 			}
 			if err != nil {
-				return err
+				log.Fatal(err)
 			}
 		}
 	}
@@ -439,8 +439,7 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 	case "Transfer":
 	}
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
-	return nil
 	return nil
 }

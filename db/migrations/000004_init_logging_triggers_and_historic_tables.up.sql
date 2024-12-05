@@ -9,7 +9,7 @@ BEGIN
     VALUES (
         NEW.address, NEW.vault_address, NEW.stashed_balance, NEW.locked_balance, NEW.unlocked_balance, NEW.latest_block
     )
-    ON CONFLICT (address, block_number)
+    ON CONFLICT (address,vault_address, block_number)
     DO UPDATE SET
         stashed_balance = EXCLUDED.stashed_balance,
         locked_balance = EXCLUDED.locked_balance,
