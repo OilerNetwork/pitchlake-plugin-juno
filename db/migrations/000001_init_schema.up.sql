@@ -28,6 +28,7 @@ CREATE TABLE "Option_Rounds"
     reserve_price numeric(78,0),
     strike_price numeric(78,0),
     sold_options numeric(78,0),
+    deployment_date numeric(78,0),
     state character varying(10) COLLATE pg_catalog."default",
     premiums numeric(78,0),
     vault_address character varying(67) COLLATE pg_catalog."default",
@@ -81,7 +82,7 @@ CREATE TABLE "VaultStates"
     round_transition_period numeric(78,0),
     auction_duration numeric(78,0),
     round_duration numeric(78,0),
-    deployement_date numeric(78,0),
+    deployment_date numeric(78,0),
     
     CONSTRAINT "VaultState_pkey" PRIMARY KEY (address)
 );
@@ -107,7 +108,6 @@ CREATE TABLE "Option_Buyers"
     has_refunded boolean NOT NULL DEFAULT false,
     mintable_options numeric(78,0),
     refundable_amount numeric(78,0),
-    deployement_date numeric(78,0),
     CONSTRAINT buyer_round PRIMARY KEY (address, round_address)
 );
 

@@ -97,7 +97,7 @@ type OptionRound struct {
 	State              string `gorm:"column:state;"`
 	Premiums           BigInt `gorm:"column:premiums;"`
 	PayoutPerOption    BigInt `gorm:"column:payout_per_option;"`
-	DeployementDate    uint64 `gorm:"column:deployement_date;"`
+	DeploymentDate     uint64 `gorm:"column:deployment_date;"`
 }
 
 type VaultState struct {
@@ -116,7 +116,7 @@ type VaultState struct {
 	RoundTransitionPeriod uint64 `gorm:"column:round_transition_period;"`
 	AuctionDuration       uint64 `gorm:"column:auction_duration;"`
 	RoundDuration         uint64 `gorm:"column:round_duration;"`
-	DeployementDate       uint64 `gorm:"column:deployement_date;"`
+	DeploymentDate        uint64 `gorm:"column:deployment_date;"`
 }
 
 type LiquidityProviderState struct {
