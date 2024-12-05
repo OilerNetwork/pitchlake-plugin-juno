@@ -165,7 +165,6 @@ func (p *pitchlakePlugin) processUDC(
 		address := adaptors.FeltToHexString(event.Data[0].Bytes())
 		deployer := adaptors.FeltToHexString(event.Data[1].Bytes())
 		classHash := adaptors.FeltToHexString(event.Data[3].Bytes())
-
 		//ClassHash and deployer filter, may use other filters here
 
 		if classHash == p.vaultHash && deployer == p.deployer {

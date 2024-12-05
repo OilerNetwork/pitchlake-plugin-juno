@@ -18,7 +18,7 @@ CREATE TABLE "Liquidity_Providers_Historic"
     stashed_balance numeric(78,0),
     locked_balance numeric(78,0),
     unlocked_balance numeric(78,0),
-    block_number numeric(78,0)
+    block_number numeric(78,0),
      CONSTRAINT "Liquidity_Providers_Historic_pkey" PRIMARY KEY (address, vault_address,block_number)
 );
 CREATE TABLE "Option_Rounds"
@@ -95,7 +95,7 @@ CREATE TABLE "Vault_Historic"
     locked_balance numeric(78,0),
     stashed_balance numeric(78,0),
     address character varying(67) COLLATE pg_catalog."default" NOT NULL,
-    block_number numeric(78,0)
+    block_number numeric(78,0),
     CONSTRAINT "Vault_Historic_pkey" PRIMARY KEY (address,block_number)
 );
 
