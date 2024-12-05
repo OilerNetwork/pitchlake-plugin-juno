@@ -18,8 +18,8 @@ env:
     DB_URL: ${{ secrets.DB_URL }}
     UDC_ADDRESS: ${{ vars.UDC_ADDRESS }}
     VAULT_HASH: ${{ vars.VAULT_HASH }}
-    DEPLOYER: ${{vars.DEPLOYER}}
-    CURSOR: ${{vars.CURSOR}}
+    DEPLOYER: ${{ vars.DEPLOYER }}
+    CURSOR: ${{ vars.CURSOR }}
 
 permissions:
   id-token: write
@@ -92,12 +92,12 @@ jobs:
               --name ${CONTAINER_NAME} \
               -e VAULT_HASH=${{ env.VAULT_HASH }} \
               -e UDC_ADDRESS=${{ env.UDC_ADDRESS }} \
+              -e DEPLOYER=${{ env.DEPLOYER }} \
+              -e CURSOR=${{ env.CURSOR }} \
               -p ${{ env.APP_PORT }}:${{ env.APP_PORT }} \
               -v $HOME/snapshots/juno_testnet/:/snapshots \
               -e DB_URL=${DB_URL} \
               -e L1_URL=${L1_URL} \
-              -e DEPLOYER=${{env.DEPLOYER}} \
-              -e CURSOR=${{env.CURSOR}} \
               ${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}
             "
       
