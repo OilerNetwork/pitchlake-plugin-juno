@@ -214,7 +214,7 @@ func (p *pitchlakePlugin) processUDC(
 	blockNumber uint64,
 	timestamp uint64,
 ) error {
-  
+
 	eventHash := adaptors.Keccak256("ContractDeployed")
 	if eventHash == event.Keys[0].String() {
 		address := adaptors.FeltToHexString(event.Data[0].Bytes())
@@ -242,7 +242,7 @@ func (p *pitchlakePlugin) processUDC(
 				RoundTransitionPeriod: roundTransitionDuration,
 				AuctionDuration:       auctionDuration,
 				RoundDuration:         roundDuration,
-				DeployementDate:       timestamp,
+				DeploymentDate:        timestamp,
 			}
 			if err := p.db.CreateVault(&vault); err != nil {
 				log.Fatal(err)
@@ -312,7 +312,7 @@ func (p *pitchlakePlugin) processVaultEvent(
 	case "OptionRoundDeployed":
 
 		optionRound := p.junoAdaptor.RoundDeployed(*event)
-		optionRound.DeployementDate = timestamp
+		optionRound.DeploymentDate = timestamp
 		err = p.db.RoundDeployedIndex(optionRound)
 		p.roundAddresses = append(p.roundAddresses, optionRound.Address)
 		p.roundAddressesMap[optionRound.Address] = struct{}{}
