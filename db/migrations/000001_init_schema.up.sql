@@ -10,6 +10,7 @@ CREATE TABLE "Liquidity_Providers"
     CONSTRAINT "Liquidity_Providers_pkey" PRIMARY KEY (address, vault_address)
 );
 
+
 CREATE TABLE "Liquidity_Providers_Historic"
 (
     address character varying COLLATE pg_catalog."default" NOT NULL,
@@ -17,7 +18,8 @@ CREATE TABLE "Liquidity_Providers_Historic"
     stashed_balance numeric(78,0),
     locked_balance numeric(78,0),
     unlocked_balance numeric(78,0),
-    block_number numeric(78,0)
+    block_number numeric(78,0),
+     CONSTRAINT "Liquidity_Providers_Historic_pkey" PRIMARY KEY (address, vault_address,block_number)
 );
 CREATE TABLE "Option_Rounds"
 (
@@ -28,6 +30,7 @@ CREATE TABLE "Option_Rounds"
     reserve_price numeric(78,0),
     strike_price numeric(78,0),
     sold_options numeric(78,0),
+    deployment_date numeric(78,0),
     state character varying(10) COLLATE pg_catalog."default",
     premiums numeric(78,0),
     vault_address character varying(67) COLLATE pg_catalog."default",
@@ -68,11 +71,21 @@ CREATE TABLE "VaultStates"
 (
     unlocked_balance numeric(78,0),
     locked_balance numeric(78,0),
+    current_round numeric(78,0) NOT NULL,
     current_round_address character varying(67) COLLATE pg_catalog."default",
     stashed_balance numeric(78,0),
     address character varying(67) COLLATE pg_catalog."default" NOT NULL,
     latest_block numeric(78,0),
-    current_round numeric(78,0),
+    fossil_client_address character varying(67) COLLATE pg_catalog."default",
+    eth_address character varying(67) COLLATE pg_catalog."default",
+    option_round_class_hash character varying(67) COLLATE pg_catalog."default",
+    alpha numeric(78,0),
+    strike_level numeric(78,0),
+    round_transition_period numeric(78,0),
+    auction_duration numeric(78,0),
+    round_duration numeric(78,0),
+    deployment_date numeric(78,0),
+    
     CONSTRAINT "VaultState_pkey" PRIMARY KEY (address)
 );
 
@@ -82,7 +95,8 @@ CREATE TABLE "Vault_Historic"
     locked_balance numeric(78,0),
     stashed_balance numeric(78,0),
     address character varying(67) COLLATE pg_catalog."default" NOT NULL,
-    block_number numeric(78,0)
+    block_number numeric(78,0),
+    CONSTRAINT "Vault_Historic_pkey" PRIMARY KEY (address,block_number)
 );
 
 
