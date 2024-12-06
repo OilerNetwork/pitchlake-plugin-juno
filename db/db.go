@@ -227,6 +227,12 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	blockNumber uint64,
 ) error {
 
+	zero := models.BigInt{
+		Int: big.NewInt(0),
+	}
+	if startingLiquidity.Cmp(zero.Int) == 0 {
+		return nil
+	}
 	//	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
 	db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND locked_balance>0", vaultAddress).Updates(map[string]interface{}{
 		"locked_balance":   0,
