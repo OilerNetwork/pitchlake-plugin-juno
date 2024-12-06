@@ -227,17 +227,18 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 	blockNumber uint64,
 ) error {
 
-	zero := models.BigInt{
-		Int: big.NewInt(0),
-	}
-	if startingLiquidity.Cmp(zero.Int) == 0 {
-		return nil
-	}
 	//	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
-	db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND locked_balance>0", vaultAddress).Updates(map[string]interface{}{
-		"locked_balance":   0,
-		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/(?::numeric-?::numeric))", remainingLiquidty, startingLiquidity, unsoldLiquidity),
-		"latest_block":     blockNumber,
+	db.tx.Model(models.LiquidityProviderState{}).Where("vault_address = ? AND locked_balance > 0", vaultAddress).Updates(map[string]interface{}{
+		"locked_balance": 0,
+		"unlocked_balance": gorm.Expr(`
+			unlocked_balance + FLOOR(
+				CASE 
+					WHEN ?::numeric - ?::numeric <> 0 
+					THEN locked_balance * ? / (?::numeric - ?::numeric) 
+					ELSE locked_balance
+				END
+			)`, remainingLiquidty, startingLiquidity, remainingLiquidty, startingLiquidity, unsoldLiquidity),
+		"latest_block": blockNumber,
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundAddress)
 	if err != nil {
