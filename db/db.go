@@ -113,6 +113,12 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
 	premiums models.BigInt,
 	blockNumber uint64) error {
 
+	zero := models.BigInt{
+		Int: big.NewInt(0),
+	}
+	if startingLiquidity.Cmp(zero.Int) == 0 {
+		return nil
+	}
 	return db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=?", vaultAddress).Updates(
 		map[string]interface{}{
 			"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
