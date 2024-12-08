@@ -97,16 +97,26 @@ type OptionRound struct {
 	State              string `gorm:"column:state;"`
 	Premiums           BigInt `gorm:"column:premiums;"`
 	PayoutPerOption    BigInt `gorm:"column:payout_per_option;"`
+	DeploymentDate     uint64 `gorm:"column:deployment_date;"`
 }
 
 type VaultState struct {
-	CurrentRound        BigInt `gorm:"column:current_round;not null"`
-	CurrentRoundAddress string `gorm:"column:current_round_address;"`
-	UnlockedBalance     BigInt `gorm:"column:unlocked_balance;"`
-	LockedBalance       BigInt `gorm:"column:locked_balance;"`
-	StashedBalance      BigInt `gorm:"column:stashed_balance;"`
-	Address             string `gorm:"column:address;not null"`
-	LatestBlock         uint64 `gorm:"column:latest_block;"`
+	CurrentRound          BigInt `gorm:"column:current_round;not null;"`
+	CurrentRoundAddress   string `gorm:"column:current_round_address;"`
+	UnlockedBalance       BigInt `gorm:"column:unlocked_balance;"`
+	LockedBalance         BigInt `gorm:"column:locked_balance;"`
+	StashedBalance        BigInt `gorm:"column:stashed_balance;"`
+	Address               string `gorm:"column:address;not null;"`
+	LatestBlock           uint64 `gorm:"column:latest_block;"`
+	FossilClientAddress   string `gorm:"column:fossil_client_address;"`
+	EthAddress            string `gorm:"column:eth_address;"`
+	OptionRoundClassHash  string `gorm:"column:option_round_class_hash;"`
+	Alpha                 BigInt `gorm:"column:alpha;"`
+	StrikeLevel           BigInt `gorm:"column:strike_level;"`
+	RoundTransitionPeriod uint64 `gorm:"column:round_transition_period;"`
+	AuctionDuration       uint64 `gorm:"column:auction_duration;"`
+	RoundDuration         uint64 `gorm:"column:round_duration;"`
+	DeploymentDate        uint64 `gorm:"column:deployment_date;"`
 }
 
 type LiquidityProviderState struct {

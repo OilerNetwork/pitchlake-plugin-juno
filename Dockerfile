@@ -17,6 +17,7 @@ RUN git clone https://github.com/NethermindEth/juno.git &&\
 RUN bash -c 'cd juno && source ~/.cargo/env && VM_DEBUG=${VM_DEBUG} make juno'
 
 # Then build the plugin
+RUN go mod tidy
 RUN make build
 
 # Stage 2: Run Juno with the plugin

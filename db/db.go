@@ -24,7 +24,6 @@ func Init(dsn string) (*DB, error) {
 	conn, err := gorm.Open(postgres.Open(dsn), &gorm.Config{SkipDefaultTransaction: true})
 
 	if err != nil {
-		log.Fatalf("Failed to connect to the database: %v", err)
 		return nil, err
 	}
 
@@ -33,11 +32,11 @@ func Init(dsn string) (*DB, error) {
 		dsn)
 	if err != nil {
 		log.Printf("FAIlED HERE 1")
-		log.Fatal(err)
+		return nil, err
 	}
 	if err := m.Up(); err != nil {
 		if err != migrate.ErrNoChange {
-			log.Fatal(err)
+			return nil, err
 		}
 
 	}
@@ -114,6 +113,12 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
 	premiums models.BigInt,
 	blockNumber uint64) error {
 
+	zero := models.BigInt{
+		Int: big.NewInt(0),
+	}
+	if startingLiquidity.Cmp(zero.Int) == 0 {
+		return nil
+	}
 	return db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=?", vaultAddress).Updates(
 		map[string]interface{}{
 			"locked_balance":   gorm.Expr("locked_balance-FLOOR((locked_balance*?)/?)", unsoldLiquidity, startingLiquidity),
@@ -223,10 +228,17 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesOptionSettle(
 ) error {
 
 	//	totalPayout := models.BigInt{Int: new(big.Int).Mul(optionsSold.Int, payoutPerOption.Int)}
-	db.tx.Model(models.LiquidityProviderState{}).Where("vault_address=? AND locked_balance>0", vaultAddress).Updates(map[string]interface{}{
-		"locked_balance":   0,
-		"unlocked_balance": gorm.Expr("unlocked_balance + FLOOR(locked_balance*?/(?::numeric-?::numeric))", remainingLiquidty, startingLiquidity, unsoldLiquidity),
-		"latest_block":     blockNumber,
+	db.tx.Model(models.LiquidityProviderState{}).Where("vault_address = ? AND locked_balance > 0", vaultAddress).Updates(map[string]interface{}{
+		"locked_balance": 0,
+		"unlocked_balance": gorm.Expr(`
+			unlocked_balance + FLOOR(
+				CASE 
+					WHEN ?::numeric - ?::numeric <> 0 
+					THEN locked_balance * ? / (?::numeric - ?::numeric) 
+					ELSE locked_balance
+				END
+			)`, remainingLiquidty, startingLiquidity, remainingLiquidty, startingLiquidity, unsoldLiquidity),
+		"latest_block": blockNumber,
 	})
 	queuedAmounts, err := db.GetAllQueuedLiquidityForRound(roundAddress)
 	if err != nil {
@@ -334,7 +346,7 @@ func (db *DB) UpsertLiquidityProviderState(lp *models.LiquidityProviderState, bl
 	// Perform upsert using GORM's Clauses with the transaction object
 	err := db.tx.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "address"}, {Name: "vault_address"}},
-		DoUpdates: clause.AssignmentColumns([]string{"unlocked_balance", "locked_balance", "latest_block"}),
+		DoUpdates: clause.AssignmentColumns([]string{"unlocked_balance", "latest_block"}),
 	}).Create(lp).Error
 
 	if err != nil {
@@ -358,12 +370,12 @@ func (db *DB) UpdateAllOptionBuyerFields(roundAddress string, updates map[string
 	return db.tx.Model(models.OptionRound{}).Where("round_address=?", roundAddress).Updates(updates).Error
 }
 
-func (db *DB) GetOptionRoundByAddress(address string) models.OptionRound {
+func (db *DB) GetOptionRoundByAddress(address string) (*models.OptionRound, error) {
 	var or models.OptionRound
 	if err := db.tx.Where("address = ?", address).First(&or).Error; err != nil {
-		log.Fatal("Round Not Found")
+		return nil, err
 	}
-	return or
+	return &or, nil
 }
 
 func (db *DB) UpdateOptionRoundFields(address string, updates map[string]interface{}) error {
