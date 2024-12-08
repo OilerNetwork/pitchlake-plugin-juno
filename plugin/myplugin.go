@@ -5,6 +5,7 @@ import (
 	"junoplugin/db"
 	"junoplugin/models"
 	"log"
+	"math/big"
 	"os"
 	"strconv"
 
@@ -332,6 +333,7 @@ func (p *pitchlakePlugin) processRoundEvent(
 		err = p.db.BidUpdatedIndex(event.From.String(), bidId, price, treeNonceNew)
 	case "OptionsMinted", "OptionsExercised":
 		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
+
 		err = p.db.UpdateOptionBuyerFields(
 			buyerAddress,
 			roundAddress,
@@ -418,7 +420,7 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 	case "BidUpdated":
 		bidId, amount, treeNonceOld, _ := p.junoAdaptor.BidUpdated(*event)
 		p.db.BidUpdatedRevert(bidId, amount, treeNonceOld)
-	case "OptionsMinted", "OptionsExercised":
+	case "OptionsMinted":
 		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
 		err = p.db.UpdateOptionBuyerFields(
 			buyerAddress,
@@ -426,6 +428,21 @@ func (p *pitchlakePlugin) revertRoundEvent(roundAddress string, event *core.Even
 			map[string]interface{}{
 				"has_minted": false,
 			})
+	case "OptionsExercised":
+		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
+		mintableOptionsExercised := adaptors.CombineFeltToBigInt(event.Data[3].Bytes(), event.Data[2].Bytes())
+
+		zero := models.BigInt{
+			Int: big.NewInt(0),
+		}
+		if mintableOptionsExercised.Cmp(zero.Int) == 1 {
+			err = p.db.UpdateOptionBuyerFields(
+				buyerAddress,
+				roundAddress,
+				map[string]interface{}{
+					"has_minted": false,
+				})
+		}
 	case "UnusedBidsRefunded":
 		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
 		err = p.db.UpdateOptionBuyerFields(
