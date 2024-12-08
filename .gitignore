@@ -1,2 +1,4 @@
 *.so
 .env
+/juno
+juno
