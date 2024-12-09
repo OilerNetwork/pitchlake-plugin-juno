@@ -33,9 +33,12 @@ CREATE TRIGGER ob_update
     FOR EACH ROW
     EXECUTE FUNCTION public.notify_ob_update();
 
+CREATE TRIGGER bids_insert_trigger
+AFTER INSERT ON public."Bids"
+FOR EACH ROW
+EXECUTE FUNCTION public.notify_bids_channel();
 
-
-
-
-
-
+CREATE TRIGGER bids_update_trigger
+AFTER UPDATE ON public."Bids"
+FOR EACH ROW
+EXECUTE FUNCTION public.notify_bids_channel();

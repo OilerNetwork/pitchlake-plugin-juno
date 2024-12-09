@@ -89,3 +89,33 @@ BEGIN
 END;
 $BODY$;
     
+
+CREATE FUNCTION public.notify_bids_channel()
+    RETURNS trigger
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE NOT LEAKPROOF
+AS $BODY$
+DECLARE
+    notification_payload JSON;
+BEGIN
+    -- Build the payload with operation type and the new or updated row
+    IF (TG_OP = 'INSERT') THEN
+        notification_payload := json_build_object(
+            'operation', 'INSERT',
+            'data', row_to_json(NEW)
+        );
+    ELSIF (TG_OP = 'UPDATE') THEN
+        notification_payload := json_build_object(
+            'operation', 'UPDATE',
+            'data', row_to_json(NEW)
+        );
+    END IF;
+
+    -- Notify the 'bids_channel' channel with the payload
+    PERFORM pg_notify('bids_channel', notification_payload::text);
+
+    RETURN NEW;
+END;
+$BODY$;
+
