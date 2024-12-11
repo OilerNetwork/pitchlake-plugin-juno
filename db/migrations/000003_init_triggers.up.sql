@@ -16,6 +16,12 @@ CREATE TRIGGER or_update
     FOR EACH ROW
     EXECUTE FUNCTION public.notify_or_update();
 
+    CREATE TRIGGER or_insert
+    AFTER INSERT 
+    ON public."Option_Rounds"
+    FOR EACH ROW
+    EXECUTE FUNCTION public.notify_or_update();
+
 -- Trigger: vault_update
 
 
