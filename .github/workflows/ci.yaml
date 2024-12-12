@@ -1,0 +1,60 @@
+name: Juno Plugin CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    name: Building CI pipeline on Ubuntu OS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
+
+      - name: Set Up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23.1
+
+      - name: Set Up Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -q -y
+          pwd
+          ls
+        env:
+          CARGO_HOME: $HOME/.cargo
+
+      - name: Install required dependencies
+        run: |
+          sudo apt-get -qq update
+          sudo apt-get -qq install -y \
+            curl \
+            build-essential \
+            gcc \
+            upx-ucl \
+            libjemalloc-dev \
+            libbz2-dev \
+            libjemalloc2
+
+      - name: Check Code Formatting
+        run: |
+          echo "Checking formatting with go fmt..."
+          go fmt ./... || exit 1
+          echo "Formatting checked successfully!"
+
+      - name: Build Juno
+        run: |
+          echo "Building Juno..."
+          cd juno
+          source $HOME/.cargo/env
+          make juno
+      
