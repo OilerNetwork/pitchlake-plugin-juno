@@ -92,7 +92,6 @@ func (p *pitchlakePlugin) NewBlock(
 ) error {
 
 	p.db.Begin()
-	p.log.Println("ExamplePlugin NewBlock called")
 	if block.Number < p.cursor {
 		log.Printf("Pre-cursor block")
 		return nil
