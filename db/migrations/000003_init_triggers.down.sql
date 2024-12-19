@@ -5,3 +5,4 @@ DROP TRIGGER IF EXISTS ob_update ON public."Option_Buyers";
 
 DROP TRIGGER IF EXISTS bids_insert_trigger ON public."Bids";
 DROP TRIGGER IF EXISTS bids_update_trigger ON public."Bids";
+DROP TRIGGER IF EXISTS or_insert ON public."Option_Rounds";
