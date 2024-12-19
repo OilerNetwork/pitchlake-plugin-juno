@@ -130,7 +130,7 @@ func (db *DB) UpdateAllLiquidityProvidersBalancesAuctionEnd(
 func (db *DB) UpdateOptionRoundAuctionEnd(
 	address string,
 	clearingPrice,
-	optionsSold, unsoldLiquidity models.BigInt) error {
+	optionsSold, unsoldLiquidity, premiums models.BigInt) error {
 	err := db.UpdateOptionRoundFields(
 		address,
 		map[string]interface{}{
@@ -138,6 +138,7 @@ func (db *DB) UpdateOptionRoundAuctionEnd(
 			"sold_options":     optionsSold,
 			"state":            "Running",
 			"unsold_liquidity": unsoldLiquidity,
+			"premiums":         premiums,
 		})
 	if err != nil {
 		return err
