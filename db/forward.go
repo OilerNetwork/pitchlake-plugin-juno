@@ -183,6 +183,7 @@ func (db *DB) AuctionEndedIndex(
 		clearingPrice,
 		optionsSold,
 		unsoldLiquidity,
+		premiums,
 	); err != nil {
 		return err
 	}
