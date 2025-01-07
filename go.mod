@@ -10,6 +10,8 @@ require (
 	gorm.io/gorm v1.25.12
 )
 
+require github.com/mattn/go-sqlite3 v1.14.22 // indirect
+
 replace github.com/NethermindEth/juno => ./juno
 
 require (
@@ -72,5 +74,6 @@ require (
 	golang.org/x/text v0.20.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gorm.io/driver/sqlite v1.5.7
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
