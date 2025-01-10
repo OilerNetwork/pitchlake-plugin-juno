@@ -35,10 +35,25 @@ var JunoPluginInstance = pitchlakePlugin{}
 // Ensure the plugin and Juno client follow the same interface
 var _ junoplugin.JunoPlugin = (*pitchlakePlugin)(nil)
 
+func normalizeAddress(address string) string {
+	// Remove "0x" prefix if present
+	if len(address) > 2 && address[:2] == "0x" {
+		address = address[2:]
+	}
+
+	// Trim leading zeros
+	for len(address) > 1 && address[0] == '0' {
+		address = address[1:]
+	}
+
+	// Add "0x" prefix back
+	return "0x" + address
+}
+
 func (p *pitchlakePlugin) Init() error {
 	dbUrl := os.Getenv("DB_URL")
 	udcAddress := os.Getenv("UDC_ADDRESS")
-	p.udcAddress = udcAddress
+	p.udcAddress = normalizeAddress(udcAddress)
 	p.vaultAddressesMap = make(map[string]struct{})
 	p.roundAddressesMap = make(map[string]struct{})
 	dbClient, err := db.Init(dbUrl)
@@ -53,20 +68,22 @@ func (p *pitchlakePlugin) Init() error {
 
 	//Map
 	for _, vaultAddress := range vaultAddresses {
-		p.vaultAddressesMap[vaultAddress] = struct{}{}
-		roundAddresses, err := p.db.GetRoundAddressess(vaultAddress)
+		normalizedAddress := normalizeAddress(vaultAddress)
+		p.vaultAddressesMap[normalizedAddress] = struct{}{}
+		roundAddresses, err := p.db.GetRoundAddressess(normalizedAddress)
 		if err != nil {
 			return err
 		}
 		//Round Address Map
 		for _, roundAddress := range *roundAddresses {
-			p.roundAddressesMap[roundAddress] = struct{}{}
+			normalizedRoundAddress := normalizeAddress(roundAddress)
+			p.roundAddressesMap[normalizedRoundAddress] = struct{}{}
 		}
 	}
 
 	p.junoAdaptor = &adaptors.JunoAdaptor{}
 	p.vaultHash = os.Getenv("VAULT_HASH")
-	p.deployer = os.Getenv("DEPLOYER")
+	p.deployer = normalizeAddress(os.Getenv("DEPLOYER"))
 	cursor := os.Getenv("CURSOR")
 	if cursor != "" {
 		p.cursor, err = strconv.ParseUint(cursor, 10, 64)
