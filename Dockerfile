@@ -29,7 +29,7 @@ RUN apt-get -qq update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-ENV L1_URL=${L1_URL}
+
 # Copy the Juno binary and the plugin from the build stage
 COPY --from=build /plugin/db/migrations ./db/migrations
 COPY --from=build /plugin/juno/build/juno ./build/
