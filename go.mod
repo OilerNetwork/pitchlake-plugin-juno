@@ -3,14 +3,13 @@ module junoplugin
 go 1.23.1
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/NethermindEth/juno v0.12.4
 	github.com/golang-migrate/migrate v3.5.4+incompatible
 	golang.org/x/crypto v0.29.0
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.12
 )
-
-require github.com/mattn/go-sqlite3 v1.14.22 // indirect
 
 replace github.com/NethermindEth/juno => ./juno
 
@@ -63,7 +62,7 @@ require (
 	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/testify v1.10.0 // indirect
+	github.com/stretchr/testify v1.10.0
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.56.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -74,6 +73,5 @@ require (
 	golang.org/x/text v0.20.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/driver/sqlite v1.5.7
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
