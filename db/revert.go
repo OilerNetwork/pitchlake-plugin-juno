@@ -119,15 +119,18 @@ func (db *DB) RoundSettledRevert(vaultAddress, roundAddress string, blockNumber 
 	return err
 }
 
-func (db *DB) BidAcceptedRevert(bidId, roundAddress string) error {
+func (db *DB) BidPlacedRevert(bidId, roundAddress string) error {
 	err := db.DeleteBid(bidId, roundAddress)
 	return err
 }
 
-func (db *DB) BidUpdatedRevert(bidId string, amount models.BigInt, treeNonce uint64) {
-	db.tx.Model(models.Bid{}).Where("bid_id = ?", bidId).Updates(map[string]interface{}{
+func (db *DB) BidUpdatedRevert(bidId, roundAddress string, amount models.BigInt, treeNonce uint64) error {
+	if err := db.tx.Model(models.Bid{}).Where("bid_id = ?", bidId).Where("round_address = ?", roundAddress).Updates(map[string]interface{}{
 		"amount":     gorm.Expr("amount - ?", amount),
 		"tree_nonce": treeNonce,
-	})
+	}); err != nil {
+		return err.Error
+	}
+	return nil
 
 }

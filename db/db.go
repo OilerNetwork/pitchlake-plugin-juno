@@ -592,6 +592,11 @@ func (db *DB) Commit() {
 	db.tx = nil
 }
 
+func (db *DB) Rollback() {
+	db.tx.Rollback()
+	db.tx = nil
+}
+
 func (db *DB) Tx(tx *gorm.DB) {
 	db.tx = tx
 }

@@ -64,18 +64,28 @@ var vaultEventNames = []string{
 	"StashWithdrawn",
 	"OptionRoundDeployed",
 	"L1RequestFulfilled",
-}
-var roundEventNames = []string{
 	"PricingDataSet",
 	"AuctionStarted",
-	"BidPlaced",
-	"BidUpdated",
 	"AuctionEnded",
 	"OptionRoundSettled",
-	"OptionsExercised",
-	"OptionsMinted",
+	"BidPlaced",
+	"BidUpdated",
 	"UnusedBidsRefunded",
+	"OptionsMinted",
+	"OptionsExercised",
 }
+
+// var roundEventNames = []string{
+
+// 	"AuctionStarted",
+// 	"BidPlaced",
+// 	"BidUpdated",
+// 	"AuctionEnded",
+// 	"OptionRoundSettled",
+// 	"OptionsExercised",
+// 	"OptionsMinted",
+// 	"UnusedBidsRefunded",
+// }
 
 // keccak256 function to hash the event name
 func Keccak256(eventName string) string {
@@ -100,14 +110,14 @@ func Keccak256(eventName string) string {
 }
 
 // DecodeEventName decodes the event name from the keys of a StarkNet event
-func DecodeEventNameRound(eventKey string) (string, error) {
-	for _, name := range roundEventNames {
-		if Keccak256(name) == eventKey {
-			return name, nil
-		}
-	}
-	return "", fmt.Errorf("event name not found for key: %s", eventKey)
-}
+// func DecodeEventNameRound(eventKey string) (string, error) {
+// 	for _, name := range roundEventNames {
+// 		if Keccak256(name) == eventKey {
+// 			return name, nil
+// 		}
+// 	}
+// 	return "", fmt.Errorf("event name not found for key: %s", eventKey)
+// }
 
 func DecodeEventNameVault(eventKey string) (string, error) {
 	for _, name := range vaultEventNames {
