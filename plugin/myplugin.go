@@ -329,8 +329,8 @@ func (p *pitchlakePlugin) processRoundEvent(
 		bid, buyer := p.junoAdaptor.BidPlaced(*event)
 		err = p.db.BidPlacedIndex(bid, buyer)
 	case "BidUpdated":
-		bidId, price, _, treeNonceNew := p.junoAdaptor.BidUpdated(*event)
-		err = p.db.BidUpdatedIndex(event.From.String(), bidId, price, treeNonceNew)
+		bidId, priceIncrease, _, treeNonceNew := p.junoAdaptor.BidUpdated(*event)
+		err = p.db.BidUpdatedIndex(event.From.String(), bidId, priceIncrease, treeNonceNew)
 	case "OptionsMinted", "OptionsExercised":
 		buyerAddress := adaptors.FeltToHexString(event.Keys[1].Bytes())
 

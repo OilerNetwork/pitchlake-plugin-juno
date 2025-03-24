@@ -140,8 +140,8 @@ func (p *JunoAdaptor) BidPlaced(event core.Event) (models.Bid, models.OptionBuye
 
 func (p *JunoAdaptor) BidUpdated(event core.Event) (string, models.BigInt, uint64, uint64) {
 	bidId := event.Data[0].String()
-	price := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[1].Bytes())
+	priceIncrease := CombineFeltToBigInt(event.Data[2].Bytes(), event.Data[1].Bytes())
 	treeNonceOld := event.Data[3].Uint64()
 	treeNonceNew := event.Data[4].Uint64()
-	return bidId, price, treeNonceOld, treeNonceNew
+	return bidId, priceIncrease, treeNonceOld, treeNonceNew
 }
